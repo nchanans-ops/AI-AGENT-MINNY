@@ -450,7 +450,7 @@ body{
 .btn{
   font-family:'Chakra Petch',sans-serif;
   font-weight:700;font-size:14px;
-  padding:9px 18px;border:none;cursor:pointer;
+  padding:9px 18px;border:none;cursor:pointer;outline:none;
   transition:filter .1s,transform .08s;letter-spacing:.2px;
 }
 .btn:active{transform:translate(1px,1px);filter:brightness(.88);}
@@ -522,7 +522,7 @@ td{padding:11px 10px;border:1px solid var(--parch-border);vertical-align:top;lin
 .td-content{max-width:380px;word-break:break-word;white-space:pre-wrap;}
 .td-img{text-align:center;width:66px;}
 .td-date{font-size:13px;color:var(--text-mid);width:108px;white-space:nowrap;}
-.td-action{text-align:center;width:62px;}
+.td-action{text-align:center;width:140px;white-space:nowrap;}
 .td-notes{max-width:190px;font-size:13px;color:var(--text-mid);}
 .img-badge{
   display:inline-block;background:var(--purple);
@@ -884,7 +884,7 @@ td{padding:11px 10px;border:1px solid var(--parch-border);vertical-align:top;lin
 
             <div style="overflow-x:auto">
               <table>
-                <thead><tr><th>ID</th><th>Content</th><th>Image</th><th>Date</th><th>Delete</th></tr></thead>
+                <thead><tr><th>ID</th><th>Content</th><th>Image</th><th>Date</th><th>Actions</th></tr></thead>
                 <tbody id="kb-tbody"><tr><td colspan="5"><div class="empty-note">Loading...</div></td></tr></tbody>
               </table>
             </div>
@@ -1113,8 +1113,8 @@ function renderKB(docs){
     <td class="td-content" style="cursor:pointer;" onclick="openKBEdit(${d.id})" title="Click to edit">${esc((d.content||'').slice(0,140)+((d.content?.length||0)>140?'...':''))}</td>
     <td class="td-img">${d.has_image?'<span class="img-badge">IMG</span>':''}</td>
     <td class="td-date">${fmt(d.created_at)}</td>
-    <td class="td-action" style="display:flex;gap:5px;">
-      <button class="btn btn-amber btn-xs" onclick="openKBEdit(${d.id})">Edit</button>
+    <td class="td-action">
+      <button class="btn btn-amber btn-xs" onclick="openKBEdit(${d.id})" style="margin-right:4px;">Edit</button>
       <button class="btn btn-red btn-xs" onclick="delKB(${d.id})">Delete</button>
     </td>
   </tr>`).join('');
