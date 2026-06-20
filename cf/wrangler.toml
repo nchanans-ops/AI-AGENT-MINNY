@@ -1,0 +1,14 @@
+name = "minny-bot"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# Static assets (dashboard.html)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# D1 — same database as Python bot
+[[d1_databases]]
+binding = "DB"
+database_name = "minny-db"
+database_id = "1ee6513a-398f-483a-ad84-c2a7aeeb8196"
