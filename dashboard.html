@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thunder Control Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════
+   RESET
+═══════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --night1:#08091a;
+  --night2:#12083a;
+  --night3:#1a1040;
+  --wood-darkest:#1e0804;
+  --wood-dark:#3a1506;
+  --wood:#6b3210;
+  --wood-light:#9a5a20;
+  --wood-pale:#c8901e;
+  --gold:#d4a017;
+  --gold-bright:#f0c840;
+  --parch:#f5e6b8;
+  --parch-mid:#ead89a;
+  --parch-border:#c8a030;
+  --text-dark:#1a0a02;
+  --text-mid:#5a2e08;
+  --text-light:#f5e6b8;
+  --green:#2a6010;
+  --green-l:#4aaa28;
+  --red:#8a1010;
+  --red-l:#cc2828;
+  --purple:#5c18b0;
+  --purple-l:#9858e8;
+  --purple-glow:rgba(152,88,232,0.5);
+  --minny-green:#58b858;
+  --gold-glow:rgba(212,160,23,0.4);
+  --amber:#a06808;
+}
+
+body{
+  font-family:'Chakra Petch',sans-serif;
+  background:var(--night1);
+  min-height:100vh;
+  color:var(--text-dark);
+  overflow-x:hidden;
+}
+
+/* ═══════════════════════════════════════
+   SKY BACKGROUND
+═══════════════════════════════════════ */
+#sky-canvas{
+  position:fixed;
+  top:0;left:0;right:0;
+  height:55vh;
+  background:linear-gradient(180deg,#08091a 0%,#12083a 50%,#1a1040 100%);
+  pointer-events:none;
+  z-index:0;
+  overflow:hidden;
+}
+#sky-canvas::after{
+  content:'';
+  position:absolute;
+  bottom:0;left:0;right:0;height:40px;
+  background:linear-gradient(180deg,transparent,#08091a);
+}
+.star{
+  position:absolute;
+  background:white;
+  border-radius:50%;
+  width:var(--sz,2px);height:var(--sz,2px);
+  animation:twinkle var(--dur,3s) ease-in-out var(--dl,0s) infinite;
+}
+@keyframes twinkle{0%,100%{opacity:.2;transform:scale(1);}50%{opacity:1;transform:scale(1.4);}}
+
+#ground-strip{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  height:45vh;
+  background:linear-gradient(180deg,#08091a 0%,#0d2010 40%,#142a10 100%);
+  z-index:0;
+}
+
+/* ═══════════════════════════════════════
+   MAIN WRAPPER
+═══════════════════════════════════════ */
+#shell{
+  position:relative;
+  z-index:1;
+  max-width:1260px;
+  margin:0 auto;
+  padding:18px 16px 60px;
+}
+
+/* ═══════════════════════════════════════
+   GAME TITLE BAR
+═══════════════════════════════════════ */
+#titlebar{
+  background:linear-gradient(90deg,#1e0804 0%,#2e0e08 40%,#1e0804 100%);
+  border:3px solid var(--gold);
+  border-bottom:none;
+  padding:10px 22px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  box-shadow:0 0 24px var(--gold-glow), inset 0 1px 0 rgba(255,220,80,.15);
+  position:relative;
+  overflow:hidden;
+}
+/* scanline texture */
+#titlebar::before{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.12) 3px,rgba(0,0,0,.12) 4px);
+  pointer-events:none;
+}
+.title-logo{
+  font-family:'Press Start 2P',monospace;
+  font-size:14px;
+  color:var(--gold-bright);
+  text-shadow:0 0 12px var(--gold),2px 2px 0 #3a0800;
+  letter-spacing:1px;
+}
+.title-sub{
+  font-size:12px;font-weight:600;
+  color:#c8a080;letter-spacing:.5px;margin-top:4px;
+}
+.hud-badges{display:flex;gap:10px;align-items:center;}
+.hud-badge{
+  font-family:'Press Start 2P',monospace;
+  font-size:8px;padding:5px 10px;
+  border:2px solid var(--gold);
+  background:rgba(212,160,23,.12);
+  color:var(--gold-bright);
+  letter-spacing:.5px;
+}
+.online-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#50e050;box-shadow:0 0 8px #50e050;
+  animation:pulse-dot 2s ease-in-out infinite;display:inline-block;margin-right:6px;
+}
+@keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+/* ═══════════════════════════════════════
+   GAME WINDOW FRAME (outer gold)
+═══════════════════════════════════════ */
+#game-frame{
+  border:3px solid var(--gold);
+  border-top:none;
+  background:linear-gradient(180deg,#1e0804 0%,#120602 100%);
+  box-shadow:0 0 40px var(--gold-glow), inset 0 0 60px rgba(0,0,0,.6);
+  padding:16px;
+}
+
+/* ═══════════════════════════════════════
+   TWO-COLUMN LAYOUT
+═══════════════════════════════════════ */
+#columns{display:flex;gap:16px;align-items:flex-start;}
+#char-col{width:256px;flex-shrink:0;position:sticky;top:16px;}
+#main-col{flex:1;min-width:0;}
+
+/* ═══════════════════════════════════════
+   CHARACTER CARD
+═══════════════════════════════════════ */
+#char-card{
+  background:linear-gradient(180deg,#120404 0%,#0e0210 100%);
+  border:3px solid var(--gold);
+  box-shadow:0 0 0 1px #3a0e00,0 0 24px rgba(120,60,220,.4),inset 0 0 30px rgba(0,0,0,.5);
+  padding:0;
+  overflow:hidden;
+}
+.card-header{
+  background:linear-gradient(90deg,var(--wood-dark),var(--wood),var(--wood-dark));
+  padding:8px 12px;text-align:center;
+  border-bottom:2px solid var(--gold);
+  position:relative;
+}
+.card-header::before,.card-header::after{
+  content:'';position:absolute;top:50%;
+  width:6px;height:6px;background:var(--gold);border-radius:50%;
+  box-shadow:0 0 6px var(--gold);
+  transform:translateY(-50%);
+}
+.card-header::before{left:10px;}
+.card-header::after{right:10px;}
+.card-title{
+  font-family:'Press Start 2P',monospace;
+  font-size:9px;color:var(--gold-bright);
+  text-shadow:0 0 8px var(--gold);letter-spacing:1px;
+}
+
+/* MINNY STAGE */
+#minny-stage{
+  position:relative;
+  display:flex;
+  justify-content:center;
+  align-items:flex-end;
+  padding:20px 10px 12px;
+  background:radial-gradient(ellipse 70% 60% at 50% 60%,rgba(92,24,176,.18) 0%,transparent 70%);
+  overflow:visible;
+}
+/* aura behind minny */
+#minny-aura{
+  position:absolute;
+  width:160px;height:160px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(92,24,176,.25) 0%,rgba(92,24,176,.08) 50%,transparent 70%);
+  animation:aura-pulse 2.5s ease-in-out infinite;
+  bottom:20px;left:50%;transform:translateX(-50%);
+}
+@keyframes aura-pulse{0%,100%{transform:translateX(-50%) scale(1);opacity:.7;}50%{transform:translateX(-50%) scale(1.15);opacity:1;}}
+
+/* ground shadow */
+#minny-shadow{
+  position:absolute;
+  bottom:10px;left:50%;transform:translateX(-50%);
+  width:100px;height:14px;
+  background:radial-gradient(ellipse,rgba(0,0,0,.5) 0%,transparent 70%);
+  animation:shadow-pulse 2.2s ease-in-out infinite;
+}
+@keyframes shadow-pulse{0%,100%{width:100px;opacity:.5;}50%{width:80px;opacity:.3;}}
+
+/* MAIN MINNY WRAP */
+#minny-wrap{
+  position:relative;
+  z-index:2;
+  animation:minny-float 2.2s ease-in-out infinite;
+  cursor:pointer;
+  filter:drop-shadow(0 4px 16px rgba(92,24,176,.6));
+}
+#minny-wrap:hover{animation:minny-hover 0.5s ease-in-out infinite;}
+#minny-wrap.thinking{animation:minny-think .7s ease-in-out infinite;}
+#minny-wrap.happy{animation:minny-happy .65s ease-out forwards;}
+
+@keyframes minny-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+@keyframes minny-hover{0%,100%{transform:translateY(0) scale(1.0);}50%{transform:translateY(-18px) scale(1.06);}}
+@keyframes minny-think{0%,100%{transform:rotate(0) translateY(-6px);}35%{transform:rotate(-7deg) translateY(-4px);}65%{transform:rotate(7deg) translateY(-4px);}}
+@keyframes minny-happy{0%{transform:translateY(0) scale(1);}25%{transform:translateY(-28px) scale(1.15) rotate(-5deg);}50%{transform:translateY(-22px) scale(1.18) rotate(5deg);}75%{transform:translateY(-10px) scale(1.08);}100%{transform:translateY(0) scale(1);}}
+
+/* Eye blink */
+.m-eye{animation:blink 5.5s ease-in-out infinite;transform-origin:center;}
+.m-eye:nth-child(2){animation-delay:.06s;}
+@keyframes blink{0%,88%,100%{transform:scaleY(1);}93%{transform:scaleY(.07);}}
+/* Leaf sway */
+.m-leaf-l{animation:sway-l 3.5s ease-in-out infinite;transform-origin:50% 100%;}
+.m-leaf-r{animation:sway-r 3.5s ease-in-out infinite;transform-origin:50% 100%;}
+@keyframes sway-l{0%,100%{transform:rotate(0);}50%{transform:rotate(-8deg);}}
+@keyframes sway-r{0%,100%{transform:rotate(0);}50%{transform:rotate(8deg);}}
+/* Lightning glow */
+.m-bolt{animation:bolt 1.8s ease-in-out infinite;}
+@keyframes bolt{0%,100%{filter:drop-shadow(0 0 3px #c084fc);opacity:.9;}50%{filter:drop-shadow(0 0 12px #e9d5ff) drop-shadow(0 0 20px #c084fc);opacity:1;}}
+
+/* SPARKLES */
+.sparkle{
+  position:absolute;pointer-events:none;
+  width:var(--sz,8px);height:var(--sz,8px);
+  animation:sparkle var(--dur,2.5s) ease-in-out var(--dl,0s) infinite;
+  z-index:3;
+}
+.sparkle::before,.sparkle::after{
+  content:'';position:absolute;background:var(--col,#f0c840);border-radius:50%;
+}
+.sparkle::before{width:100%;height:30%;top:35%;left:0;}
+.sparkle::after{width:30%;height:100%;top:0;left:35%;}
+@keyframes sparkle{
+  0%{opacity:0;transform:translate(0,0) scale(0) rotate(0deg);}
+  20%{opacity:1;transform:translate(var(--tx,0px),var(--ty,-20px)) scale(1) rotate(90deg);}
+  80%{opacity:.7;}
+  100%{opacity:0;transform:translate(calc(var(--tx,0px)*1.5),calc(var(--ty,-20px)*2)) scale(.3) rotate(200deg);}
+}
+
+/* SPEECH BUBBLE */
+#speech-bubble{
+  position:absolute;
+  top:-8px;right:-10px;
+  background:white;
+  border:2px solid var(--gold);
+  padding:6px 10px;
+  font-size:12px;font-weight:700;
+  color:var(--text-dark);
+  white-space:nowrap;
+  box-shadow:2px 2px 0 var(--gold);
+  z-index:10;
+  animation:bubble-in .25s ease;
+  border-radius:8px 8px 8px 0;
+}
+#speech-bubble::after{
+  content:'';position:absolute;
+  bottom:-10px;left:10px;
+  border:5px solid transparent;
+  border-top:5px solid var(--gold);
+}
+@keyframes bubble-in{from{opacity:0;transform:scale(.85) translateY(-4px);}to{opacity:1;transform:scale(1) translateY(0);}}
+
+/* CARD BODY */
+.card-body{padding:12px 14px;}
+
+.char-name{
+  font-family:'Press Start 2P',monospace;
+  font-size:10px;color:var(--gold-bright);
+  text-align:center;margin-bottom:2px;
+  text-shadow:0 0 8px var(--gold);
+}
+.char-class{
+  text-align:center;font-size:12px;font-weight:600;
+  color:#c8a0d8;margin-bottom:12px;
+}
+
+/* STAT BARS */
+.stat-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.stat-label{
+  font-family:'Press Start 2P',monospace;
+  font-size:7px;color:var(--gold-bright);
+  width:38px;flex-shrink:0;letter-spacing:.3px;
+}
+.stat-track{
+  flex:1;height:10px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(212,160,23,.4);
+  overflow:hidden;
+  position:relative;
+}
+.stat-fill{
+  height:100%;width:0;
+  animation:fill-up 1.2s ease var(--delay,.2s) forwards;
+  position:relative;
+}
+.stat-fill::after{
+  content:'';position:absolute;
+  top:0;right:0;width:4px;height:100%;
+  background:rgba(255,255,255,.4);
+}
+@keyframes fill-up{to{width:var(--w,100%);}}
+.sf-gold{background:linear-gradient(90deg,#a07010,var(--gold-bright));}
+.sf-purple{background:linear-gradient(90deg,#5018a0,#c084fc);}
+.sf-green{background:linear-gradient(90deg,#1a5010,#5ae050);}
+.sf-red{background:linear-gradient(90deg,#5a1010,#ee5050);}
+.stat-val{
+  font-family:'Press Start 2P',monospace;
+  font-size:6px;color:var(--gold-bright);
+  width:22px;text-align:right;flex-shrink:0;
+}
+
+/* SKILL LIST */
+.skill-section{
+  border-top:1px solid rgba(212,160,23,.3);
+  margin-top:12px;padding-top:10px;
+}
+.skill-title{
+  font-family:'Press Start 2P',monospace;
+  font-size:7px;color:var(--gold);
+  margin-bottom:8px;letter-spacing:.5px;
+}
+.skill-item{
+  display:flex;align-items:center;gap:7px;
+  font-size:12px;font-weight:600;
+  color:var(--parch);
+  padding:4px 6px;margin-bottom:3px;
+  border-left:2px solid transparent;
+  transition:border-color .15s;
+}
+.skill-item:hover{border-left-color:var(--purple-l);}
+.skill-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--purple-l);
+  box-shadow:0 0 5px var(--purple-l);
+  flex-shrink:0;
+}
+
+/* CARD FOOTER */
+.card-footer{
+  background:rgba(0,0,0,.3);
+  border-top:1px solid rgba(212,160,23,.25);
+  padding:8px 12px;
+  text-align:center;
+  font-family:'Press Start 2P',monospace;
+  font-size:7px;color:#806040;
+  letter-spacing:.5px;
+}
+
+/* ═══════════════════════════════════════
+   TABS
+═══════════════════════════════════════ */
+#tab-bar{
+  display:flex;gap:3px;margin-bottom:0;
+  overflow-x:auto;padding-bottom:1px;
+}
+.tab-btn{
+  font-family:'Press Start 2P',monospace;
+  font-size:8px;padding:11px 16px;
+  background:linear-gradient(180deg,#3a1a08 0%,#1e0a02 100%);
+  color:#906040;
+  border:2px solid #4a2010;
+  border-bottom:none;
+  cursor:pointer;
+  position:relative;top:2px;
+  white-space:nowrap;letter-spacing:.5px;
+  transition:all .12s;
+}
+.tab-btn:hover{color:var(--gold-bright);border-color:var(--gold);background:linear-gradient(180deg,#5a2a10 0%,#3a1508 100%);}
+.tab-btn.active{
+  background:var(--parch);
+  color:var(--text-dark);
+  border-color:var(--gold);
+  border-bottom:2px solid var(--parch);
+  top:4px;z-index:2;
+}
+
+/* ═══════════════════════════════════════
+   CONTENT PANEL
+═══════════════════════════════════════ */
+#content-box{
+  background:var(--parch);
+  border:2px solid var(--gold);
+  box-shadow:0 0 20px rgba(212,160,23,.2),inset 0 0 30px rgba(196,160,48,.06);
+  position:relative;z-index:1;
+  min-height:520px;
+}
+/* corner decorations */
+#content-box::before,#content-box::after{
+  content:'✦';
+  position:absolute;
+  font-size:14px;color:var(--gold);
+  text-shadow:0 0 8px var(--gold);
+}
+#content-box::before{top:-1px;left:8px;}
+#content-box::after{top:-1px;right:8px;}
+
+.panel{display:none;padding:22px;}
+.panel.active{display:block;}
+
+.panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;
+  margin-bottom:20px;padding-bottom:14px;
+  border-bottom:2px solid var(--parch-border);
+}
+.panel-title{
+  font-family:'Press Start 2P',monospace;
+  font-size:11px;color:var(--wood-dark);
+  text-shadow:1px 1px 0 rgba(196,160,48,.4);
+}
+
+/* ═══════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════ */
+.btn{
+  font-family:'Chakra Petch',sans-serif;
+  font-weight:700;font-size:14px;
+  padding:9px 18px;border:none;cursor:pointer;
+  transition:filter .1s,transform .08s;letter-spacing:.2px;
+}
+.btn:active{transform:translate(1px,1px);filter:brightness(.88);}
+.btn-green{
+  background:linear-gradient(180deg,#52aa30,#2c6810);color:#e8ffe0;
+  border-top:3px solid #78d050;border-left:3px solid #78d050;
+  border-bottom:3px solid #183808;border-right:3px solid #183808;
+  text-shadow:0 1px 0 #183808;
+}
+.btn-green:hover{filter:brightness(1.12);}
+.btn-red{
+  background:linear-gradient(180deg,#c82828,#781010);color:#ffe8e8;
+  border-top:3px solid #ee6060;border-left:3px solid #ee6060;
+  border-bottom:3px solid #480808;border-right:3px solid #480808;
+  text-shadow:0 1px 0 #480808;
+}
+.btn-red:hover{filter:brightness(1.12);}
+.btn-amber{
+  background:linear-gradient(180deg,#c08818,#805808);color:#fff8e0;
+  border-top:3px solid #e8c038;border-left:3px solid #e8c038;
+  border-bottom:3px solid #483008;border-right:3px solid #483008;
+  text-shadow:0 1px 0 #483008;
+}
+.btn-amber:hover{filter:brightness(1.12);}
+.btn-purple{
+  background:linear-gradient(180deg,#7838d8,#4818a0);color:#f0e8ff;
+  border-top:3px solid #b880f8;border-left:3px solid #b880f8;
+  border-bottom:3px solid #280858;border-right:3px solid #280858;
+  text-shadow:0 1px 0 #280858;
+}
+.btn-purple:hover{filter:brightness(1.12);}
+.btn-sm{font-size:13px;padding:7px 13px;}
+.btn-xs{font-size:12px;padding:5px 9px;}
+
+/* ═══════════════════════════════════════
+   INPUTS
+═══════════════════════════════════════ */
+input[type=text],input[type=number],textarea,select{
+  font-family:'Chakra Petch',sans-serif;font-size:15px;
+  border:2px solid var(--parch-border);
+  background:#fffcee;color:var(--text-dark);
+  padding:9px 13px;outline:none;width:100%;
+  transition:border-color .18s,box-shadow .18s;
+}
+input:focus,textarea:focus,select:focus{
+  border-color:var(--wood-pale);
+  box-shadow:0 0 0 3px rgba(200,144,30,.22);
+}
+textarea{resize:vertical;min-height:108px;line-height:1.65;}
+
+/* ═══════════════════════════════════════
+   TABLE
+═══════════════════════════════════════ */
+table{width:100%;border-collapse:collapse;font-size:15px;}
+thead tr{
+  background:linear-gradient(180deg,var(--wood-light),var(--wood-dark));
+  color:var(--parch);
+}
+thead th{
+  font-size:12px;font-weight:700;padding:12px 10px;
+  text-align:left;border:1px solid var(--wood-dark);
+  letter-spacing:.2px;white-space:nowrap;
+}
+tbody tr{background:#fffcee;border-bottom:1px solid #ddc880;transition:background .12s;}
+tbody tr:nth-child(even){background:var(--parch-mid);}
+tbody tr:hover{background:#ffeaa0;}
+td{padding:11px 10px;border:1px solid var(--parch-border);vertical-align:top;line-height:1.55;}
+.td-id{text-align:center;font-weight:800;color:var(--wood-dark);width:46px;}
+.td-content{max-width:380px;word-break:break-word;white-space:pre-wrap;}
+.td-img{text-align:center;width:66px;}
+.td-date{font-size:13px;color:var(--text-mid);width:108px;white-space:nowrap;}
+.td-action{text-align:center;width:62px;}
+.td-notes{max-width:190px;font-size:13px;color:var(--text-mid);}
+.img-badge{
+  display:inline-block;background:var(--purple);
+  color:white;font-size:11px;font-weight:700;padding:2px 7px;
+}
+
+/* ═══════════════════════════════════════
+   SLIDE FORMS
+═══════════════════════════════════════ */
+.slide-form{
+  display:none;background:#fffef5;
+  border:2px solid var(--parch-border);
+  border-left:5px solid var(--wood-pale);
+  padding:20px;margin-bottom:20px;
+  animation:slide-in .18s ease;
+}
+.slide-form.open{display:block;}
+@keyframes slide-in{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+.form-label{display:block;font-size:13px;font-weight:700;color:var(--wood-dark);margin-bottom:6px;letter-spacing:.3px;}
+.form-group{margin-bottom:16px;}
+.form-row{display:flex;gap:12px;flex-wrap:wrap;}
+.form-row .form-group{flex:1;min-width:170px;}
+.form-actions{display:flex;gap:10px;}
+#kb-img-preview{max-width:200px;max-height:150px;border:2px solid var(--parch-border);display:none;margin-top:8px;}
+
+/* ═══════════════════════════════════════
+   EXPIRY
+═══════════════════════════════════════ */
+.filter-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.filter-btn{
+  font-family:'Chakra Petch',sans-serif;font-size:13px;font-weight:600;
+  padding:7px 13px;background:var(--parch-mid);
+  border:2px solid var(--parch-border);cursor:pointer;
+  color:var(--text-dark);transition:all .1s;
+}
+.filter-btn:hover,.filter-btn.active{background:var(--wood);color:var(--parch);border-color:var(--wood-dark);}
+.expiry-custom-row{display:flex;gap:10px;margin-bottom:16px;}
+.expiry-custom-row input{flex:1;}
+.expiry-card{
+  background:#fffcee;border:1px solid var(--parch-border);
+  border-left:5px solid var(--red-l);
+  padding:14px 16px;margin-bottom:9px;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+}
+.expiry-card.ok{border-left-color:var(--green-l);}
+.expiry-shop{font-size:17px;font-weight:700;color:var(--text-dark);}
+.expiry-meta{font-size:13px;color:var(--text-mid);margin-top:3px;}
+.expiry-date{font-size:17px;font-weight:700;color:var(--red-l);}
+.status-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;background:#d4f0dc;color:#1a5a28;}
+.empty-note{text-align:center;padding:48px 20px;font-size:15px;font-weight:600;color:var(--text-mid);line-height:2;}
+
+/* ═══════════════════════════════════════
+   CHAT / TEST BOT
+═══════════════════════════════════════ */
+#chat-box{
+  background:#fffcee;border:2px solid var(--parch-border);
+  height:380px;overflow-y:auto;padding:16px;
+  margin-bottom:12px;scroll-behavior:smooth;
+}
+.chat-msg{margin-bottom:14px;animation:msg-in .18s ease;}
+@keyframes msg-in{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+.msg-label{font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:4px;display:flex;align-items:center;gap:7px;}
+.msg-user .msg-label{justify-content:flex-end;}
+.msg-user{text-align:right;}
+.msg-user .bubble{
+  display:inline-block;max-width:72%;
+  background:linear-gradient(135deg,#2058a8,#143878);
+  color:white;padding:11px 15px;font-size:15px;line-height:1.55;
+  border-radius:16px 16px 4px 16px;text-align:left;
+}
+.msg-bot .bubble{
+  display:inline-block;max-width:82%;
+  background:white;border:2px solid var(--parch-border);
+  color:var(--text-dark);padding:11px 15px;font-size:15px;line-height:1.65;
+  border-radius:16px 16px 16px 4px;white-space:pre-wrap;word-break:break-word;
+}
+.mode-badge{
+  font-family:'Press Start 2P',monospace;
+  font-size:7px;font-weight:700;padding:2px 8px;
+}
+.mode-kb{background:#d4f0dc;color:#1a5a28;}
+.mode-gpt{background:#d8e8ff;color:#1a3870;}
+.chat-input-row{display:flex;gap:10px;}
+#chat-input{flex:1;font-size:15px;}
+.typing-dots{display:flex;gap:5px;padding:3px 2px;}
+.typing-dots span{
+  width:8px;height:8px;border-radius:50%;background:var(--wood-pale);
+  animation:dot-hop 1.2s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2){animation-delay:.2s;}
+.typing-dots span:nth-child(3){animation-delay:.4s;}
+@keyframes dot-hop{0%,80%,100%{transform:translateY(0);opacity:.5;}40%{transform:translateY(-7px);opacity:1;}}
+
+/* ═══════════════════════════════════════
+   HISTORY
+═══════════════════════════════════════ */
+.history-ctrl{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+#history-chatid{flex:1;min-width:175px;}
+#history-list{
+  background:#fffcee;border:2px solid var(--parch-border);
+  max-height:440px;overflow-y:auto;padding:16px;
+}
+.h-msg{padding:10px 14px;margin-bottom:8px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+.h-msg.user{
+  background:linear-gradient(135deg,#2058a8,#143878);
+  color:white;margin-left:15%;border-radius:10px 10px 4px 10px;
+}
+.h-msg.assistant{
+  background:white;border:1px solid var(--parch-border);
+  margin-right:15%;border-radius:10px 10px 10px 4px;
+}
+.h-role{font-size:10px;font-weight:700;margin-bottom:4px;opacity:.7;font-family:'Press Start 2P',monospace;font-size:7px;text-transform:uppercase;}
+
+/* ═══════════════════════════════════════
+   ROLE BADGES
+═══════════════════════════════════════ */
+.role-badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;letter-spacing:.3px;}
+.r-admin{background:#fee2e2;color:#7a1010;}
+.r-staff{background:#fef3c7;color:#78500a;}
+.r-vip{background:#ede9fe;color:#4c1d95;}
+.r-customer{background:#e0f0e8;color:#1a4a2a;}
+.r-default{background:#f0f0f0;color:#404040;}
+
+/* ═══════════════════════════════════════
+   TOAST
+═══════════════════════════════════════ */
+#toast-wrap{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:1000;}
+.toast{
+  background:#1e0804;color:var(--parch);
+  padding:13px 20px;border:2px solid var(--gold);
+  font-size:14px;font-weight:600;
+  box-shadow:3px 3px 0 rgba(0,0,0,.5),0 0 12px var(--gold-glow);
+  animation:t-in .2s ease,t-out .28s ease 2.5s forwards;
+}
+.toast.ok{border-color:#5aaa3a;background:#0e2008;}
+.toast.err{border-color:#ee5050;background:#1e0808;}
+@keyframes t-in{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);}}
+@keyframes t-out{to{opacity:0;transform:translateX(16px);}}
+
+/* ═══════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════ */
+#footer{
+  text-align:center;margin-top:14px;
+  font-family:'Press Start 2P',monospace;
+  font-size:7px;color:rgba(212,160,23,.35);letter-spacing:1px;
+}
+
+/* ═══════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════ */
+@media(max-width:700px){
+  #columns{flex-direction:column;}
+  #char-col{width:100%;position:static;}
+  #minny-stage{padding:14px 10px 10px;}
+  .tab-btn{font-size:7px;padding:9px 10px;}
+}
+</style>
+</head>
+<body>
+
+<!-- Stars background -->
+<div id="sky-canvas"></div>
+<div id="ground-strip"></div>
+
+<div id="shell">
+
+  <!-- ══ TITLE BAR ══ -->
+  <div id="titlebar">
+    <div>
+      <div class="title-logo">THUNDER CONTROL CENTER</div>
+
+    </div>
+    <div class="hud-badges">
+      <div class="hud-badge"><span class="online-dot"></span>ONLINE</div>
+      <div class="hud-badge" id="kb-count-badge">KB: --</div>
+    </div>
+  </div>
+
+  <!-- ══ GAME FRAME ══ -->
+  <div id="game-frame">
+    <div id="columns">
+
+      <!-- ══ CHARACTER CARD ══ -->
+      <div id="char-col">
+        <div id="char-card">
+          <div class="card-header">
+            <div class="card-title">CHARACTER</div>
+          </div>
+
+          <!-- Minny Stage -->
+          <div id="minny-stage">
+            <div id="minny-aura"></div>
+            <div id="minny-shadow"></div>
+
+            <!-- Sparkles (JS will position them) -->
+            <div class="sparkle" style="--tx:-35px;--ty:-55px;--sz:10px;--dur:2.6s;--dl:0s;--col:#f0c840;top:60%;left:15%;"></div>
+            <div class="sparkle" style="--tx:30px;--ty:-45px;--sz:8px;--dur:2.2s;--dl:.5s;--col:#c084fc;top:50%;right:12%;"></div>
+            <div class="sparkle" style="--tx:-20px;--ty:-60px;--sz:7px;--dur:3s;--dl:1s;--col:#f0c840;top:40%;left:20%;"></div>
+            <div class="sparkle" style="--tx:40px;--ty:-50px;--sz:9px;--dur:2.4s;--dl:1.5s;--col:#c084fc;top:70%;right:18%;"></div>
+            <div class="sparkle" style="--tx:-28px;--ty:-40px;--sz:6px;--dur:2.8s;--dl:.8s;--col:#88ffcc;top:30%;left:30%;"></div>
+            <div class="sparkle" style="--tx:22px;--ty:-65px;--sz:7px;--dur:2.0s;--dl:2s;--col:#f0c840;top:55%;right:25%;"></div>
+
+            <!-- MINNY SVG — ห้ามปรับเปลี่ยนตัวละครเด็ดขาด -->
+            <div id="minny-wrap" onclick="minnyHappy()" title="Click Minny!">
+
+              <!-- Speech bubble -->
+              <div id="speech-bubble">Hello!</div>
+
+              <svg width="190" height="220" viewBox="0 0 120 145" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+                <!-- Shadow -->
+                <ellipse cx="60" cy="138" rx="28" ry="6" fill="rgba(0,0,0,.45)"/>
+
+                <!-- Leaf left -->
+                <g class="m-leaf-l">
+                  <ellipse cx="36" cy="42" rx="10" ry="20" fill="#206a1e" transform="rotate(-22,36,58)"/>
+                  <ellipse cx="36" cy="41" rx="7" ry="15" fill="#38a836" transform="rotate(-22,36,58)"/>
+                  <line x1="33" y1="50" x2="30" y2="24" stroke="#185818" stroke-width="1.2" transform="rotate(-22,36,58)" opacity=".4"/>
+                </g>
+                <!-- Leaf right -->
+                <g class="m-leaf-r">
+                  <ellipse cx="84" cy="42" rx="10" ry="20" fill="#206a1e" transform="rotate(22,84,58)"/>
+                  <ellipse cx="84" cy="41" rx="7" ry="15" fill="#38a836" transform="rotate(22,84,58)"/>
+                  <line x1="87" y1="50" x2="90" y2="24" stroke="#185818" stroke-width="1.2" transform="rotate(22,84,58)" opacity=".4"/>
+                </g>
+
+                <!-- Body -->
+                <ellipse cx="60" cy="92" rx="36" ry="42" fill="#58b858"/>
+                <!-- Body highlight -->
+                <ellipse cx="50" cy="74" rx="13" ry="9" fill="rgba(255,255,255,.14)" transform="rotate(-15,50,74)"/>
+                <!-- Body shadow -->
+                <ellipse cx="60" cy="118" rx="27" ry="13" fill="#389838" opacity=".38"/>
+
+                <!-- Left bolt wing -->
+                <g class="m-bolt">
+                  <polygon points="24,86 8,96 17,96 4,114 28,98 19,98 32,82" fill="#6d28d9"/>
+                  <polygon points="24,86 8,96 17,96 4,114 28,98 19,98 32,82" fill="#c4b5fd" opacity=".38" transform="translate(-1,-1)"/>
+                </g>
+                <!-- Right bolt wing -->
+                <g class="m-bolt">
+                  <polygon points="96,86 112,96 103,96 116,114 92,98 101,98 88,82" fill="#6d28d9"/>
+                  <polygon points="96,86 112,96 103,96 116,114 92,98 101,98 88,82" fill="#c4b5fd" opacity=".38" transform="translate(1,-1)"/>
+                </g>
+
+                <!-- Face oval -->
+                <ellipse cx="60" cy="89" rx="26" ry="24" fill="#fff5da"/>
+
+                <!-- Eyes -->
+                <g class="m-eye" style="transform-origin:47px 84px">
+                  <circle cx="47" cy="84" r="6" fill="#111"/>
+                  <circle cx="49.5" cy="81.5" r="2.5" fill="white"/>
+                </g>
+                <g class="m-eye" style="transform-origin:73px 84px">
+                  <circle cx="73" cy="84" r="6" fill="#111"/>
+                  <circle cx="75.5" cy="81.5" r="2.5" fill="white"/>
+                </g>
+
+                <!-- Blush -->
+                <ellipse cx="38" cy="93" rx="7" ry="5" fill="#ff9898" opacity=".55"/>
+                <ellipse cx="82" cy="93" rx="7" ry="5" fill="#ff9898" opacity=".55"/>
+
+                <!-- Smile -->
+                <path d="M 50 97 Q 60 107 70 97" stroke="#333" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+                <!-- Chest bolt -->
+                <g class="m-bolt">
+                  <polygon points="57,104 51,117 55.5,117 49,131 69,117 63.5,117 70,104" fill="#6d28d9"/>
+                  <polygon points="57,104 51,117 55.5,117 49,131 69,117 63.5,117 70,104" fill="#ddd6fe" opacity=".35" transform="translate(-.5,-.5)"/>
+                </g>
+
+                <!-- Feet -->
+                <ellipse cx="44" cy="132" rx="14" ry="8" fill="#48a848"/>
+                <ellipse cx="76" cy="132" rx="14" ry="8" fill="#48a848"/>
+                <ellipse cx="41" cy="129" rx="5" ry="3" fill="rgba(255,255,255,.18)"/>
+                <ellipse cx="73" cy="129" rx="5" ry="3" fill="rgba(255,255,255,.18)"/>
+              </svg>
+            </div><!-- /minny-wrap -->
+          </div><!-- /minny-stage -->
+
+          <!-- Card Body -->
+          <div class="card-body">
+            <div class="char-name">MINNY</div>
+            <div class="char-class">Support Fairy &nbsp;/&nbsp; Lv. MAX</div>
+
+            <!-- Stats -->
+            <div class="stat-row">
+              <span class="stat-label">SUPPORT</span>
+              <div class="stat-track"><div class="stat-fill sf-gold" style="--w:100%;--delay:.3s"></div></div>
+              <span class="stat-val">MAX</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">THUNDER</span>
+              <div class="stat-track"><div class="stat-fill sf-purple" style="--w:100%;--delay:.5s"></div></div>
+              <span class="stat-val">MAX</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">MEMORY</span>
+              <div class="stat-track"><div class="stat-fill sf-green" style="--w:100%;--delay:.7s"></div></div>
+              <span class="stat-val">MAX</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">SPEED</span>
+              <div class="stat-track"><div class="stat-fill sf-red" style="--w:100%;--delay:.9s"></div></div>
+              <span class="stat-val">MAX</span>
+            </div>
+
+            <!-- Skills -->
+            <div class="skill-section">
+              <div class="skill-title">SKILLS</div>
+              <div class="skill-item"><span class="skill-dot"></span>Answer (KB Match)</div>
+              <div class="skill-item"><span class="skill-dot"></span>Customer Rewrite</div>
+              <div class="skill-item"><span class="skill-dot"></span>Expiry Tracker</div>
+              <div class="skill-item"><span class="skill-dot"></span>User Memory</div>
+              <div class="skill-item"><span class="skill-dot"></span>Thunder Bolt</div>
+            </div>
+          </div>
+
+          <div class="card-footer">THUNDER SOLUTION &nbsp;© 2025</div>
+        </div>
+      </div><!-- /char-col -->
+
+      <!-- ══ MAIN CONTENT ══ -->
+      <div id="main-col">
+        <!-- Tabs -->
+        <div id="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('kb',this)">KNOWLEDGE</button>
+          <button class="tab-btn" onclick="switchTab('expiry',this)">EXPIRY</button>
+          <button class="tab-btn" onclick="switchTab('test',this)">TEST BOT</button>
+          <button class="tab-btn" onclick="switchTab('history',this)">HISTORY</button>
+          <button class="tab-btn" onclick="switchTab('users',this)">USERS</button>
+        </div>
+
+        <div id="content-box">
+
+          <!-- ── KB ── -->
+          <div id="panel-kb" class="panel active">
+            <div class="panel-header">
+              <span class="panel-title">KNOWLEDGE BASE</span>
+              <button class="btn btn-green btn-sm" onclick="toggleForm('kb-form')">+ Add Knowledge</button>
+            </div>
+
+            <div id="kb-form" class="slide-form">
+              <div class="form-group">
+                <label class="form-label">Content / Answer</label>
+                <textarea id="kb-content" placeholder="Enter content with keywords for matching&#10;e.g. ออมสิน, ธนาคารออมสิน&#10;If Omsim transfers to Omsim, no QR..."></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Image (optional)</label>
+                <input type="file" id="kb-img" accept="image/*" onchange="previewImg(this)" style="width:auto;padding:6px;background:transparent;border:none;">
+                <img id="kb-img-preview" alt="preview">
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-green btn-sm" onclick="submitKB()">Save</button>
+                <button class="btn btn-amber btn-sm" onclick="toggleForm('kb-form')">Cancel</button>
+              </div>
+            </div>
+
+            <input type="text" id="kb-search" placeholder="Search knowledge base..." oninput="filterKB(this.value)" style="margin-bottom:16px">
+
+            <div style="overflow-x:auto">
+              <table>
+                <thead><tr><th>ID</th><th>Content</th><th>Image</th><th>Date</th><th>Delete</th></tr></thead>
+                <tbody id="kb-tbody"><tr><td colspan="5"><div class="empty-note">Loading...</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ── EXPIRY ── -->
+          <div id="panel-expiry" class="panel">
+            <div class="panel-header">
+              <span class="panel-title">EXPIRY TRACKER</span>
+              <button class="btn btn-green btn-sm" onclick="loadExpiry(curExpiryQ)">Refresh</button>
+            </div>
+            <div class="filter-row">
+              <button class="filter-btn active" onclick="setExpiry('7 วัน',this)">7 Days</button>
+              <button class="filter-btn" onclick="setExpiry('เดือนนี้',this)">This Month</button>
+              <button class="filter-btn" onclick="setExpiry('เดือนหน้า',this)">Next Month</button>
+              <button class="filter-btn" onclick="setExpiry('สัปดาห์หน้า',this)">Next Week</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 1',this)">Jan</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 2',this)">Feb</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 3',this)">Mar</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 4',this)">Apr</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 5',this)">May</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 6',this)">Jun</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 7',this)">Jul</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 8',this)">Aug</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 9',this)">Sep</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 10',this)">Oct</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 11',this)">Nov</button>
+              <button class="filter-btn" onclick="setExpiry('เดือน 12',this)">Dec</button>
+            </div>
+            <div class="expiry-custom-row">
+              <input type="text" id="expiry-q" placeholder="e.g. August, Jul, next month...">
+              <button class="btn btn-amber btn-sm" onclick="customExpiry()">Search</button>
+            </div>
+            <div id="expiry-results"><div class="empty-note">Loading...</div></div>
+          </div>
+
+          <!-- ── TEST BOT ── -->
+          <div id="panel-test" class="panel">
+            <div class="panel-header">
+              <span class="panel-title">TEST BOT</span>
+              <button class="btn btn-red btn-sm" onclick="clearChat()">Clear Chat</button>
+            </div>
+            <div id="chat-box">
+              <div class="chat-msg msg-bot">
+                <div class="msg-label">Minny</div>
+                <div class="bubble">Hello! Type a question to test the bot.
+KB = answered from knowledge base &nbsp;|&nbsp; GPT = AI fallback</div>
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <input type="text" id="chat-input" placeholder="Type your question...">
+              <button class="btn btn-green btn-sm" onclick="sendMsg()">Send</button>
+            </div>
+          </div>
+
+          <!-- ── HISTORY ── -->
+          <div id="panel-history" class="panel">
+            <div class="panel-header"><span class="panel-title">HISTORY</span></div>
+            <div class="history-ctrl">
+              <input type="text" id="history-chatid" placeholder="Chat ID (Telegram number)">
+              <button class="btn btn-amber btn-sm" onclick="loadHistory()">View History</button>
+              <button class="btn btn-red btn-sm" onclick="clearHistory()">Clear History</button>
+            </div>
+            <div id="history-list"><div class="empty-note">Enter a Chat ID and click "View History"</div></div>
+          </div>
+
+          <!-- ── USERS ── -->
+          <div id="panel-users" class="panel">
+            <div class="panel-header">
+              <span class="panel-title">USER PROFILES</span>
+              <button class="btn btn-purple btn-sm" onclick="toggleForm('user-form')">+ Add User</button>
+            </div>
+            <div id="user-form" class="slide-form">
+              <input type="hidden" id="user-eid">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Chat ID or @username</label>
+                  <input type="text" id="user-chatid" placeholder="e.g. 123456789 or @somchai">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Name</label>
+                  <input type="text" id="user-name" placeholder="e.g. John Smith">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Role</label>
+                  <select id="user-role">
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                    <option value="vip">VIP</option>
+                    <option value="customer">Customer</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Notes</label>
+                  <input type="text" id="user-notes" placeholder="e.g. Manages team A">
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-purple btn-sm" onclick="submitUser()">Save</button>
+                <button class="btn btn-amber btn-sm" onclick="toggleForm('user-form')">Cancel</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto">
+              <table>
+                <thead><tr><th>Chat ID / Username</th><th>Name</th><th>Role</th><th>Notes</th><th>Updated</th><th>Actions</th></tr></thead>
+                <tbody id="users-tbody"><tr><td colspan="6"><div class="empty-note">Loading...</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /content-box -->
+      </div><!-- /main-col -->
+    </div><!-- /columns -->
+  </div><!-- /game-frame -->
+
+  <div id="footer">THUNDER CONTROL CENTER &nbsp;|&nbsp; POWERED BY MINNY &nbsp;|&nbsp; THUNDER SOLUTION</div>
+</div><!-- /shell -->
+
+<div id="toast-wrap"></div>
+
+<script>
+// ══════════════════════════════════════
+// STARS
+// ══════════════════════════════════════
+(()=>{
+  const sky=document.getElementById('sky-canvas');
+  for(let i=0;i<90;i++){
+    const s=document.createElement('div');
+    const sz=(Math.random()*2+1).toFixed(1)+'px';
+    s.className='star';
+    s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*90}%;--sz:${sz};--dur:${(Math.random()*3+2).toFixed(1)}s;--dl:${(Math.random()*6).toFixed(1)}s;`;
+    sky.appendChild(s);
+  }
+})();
+
+// ══════════════════════════════════════
+// MINNY SPEECH BUBBLE
+// ══════════════════════════════════════
+const PHRASES=['Hello!','Need help?','Thunder Solution!','Ready to work!','Ask me anything!','KB is ready!','I remember everything!'];
+let phraseIdx=0;
+function rotateBubble(){
+  const b=document.getElementById('speech-bubble');
+  b.style.opacity='0';b.style.transform='scale(.85)';
+  b.style.transition='all .2s';
+  setTimeout(()=>{
+    phraseIdx=(phraseIdx+1)%PHRASES.length;
+    b.textContent=PHRASES[phraseIdx];
+    b.style.opacity='1';b.style.transform='scale(1)';
+  },250);
+}
+setInterval(rotateBubble,3500);
+
+// ══════════════════════════════════════
+// MINNY STATES
+// ══════════════════════════════════════
+function minnyThink(on){document.getElementById('minny-wrap').classList.toggle('thinking',on);}
+function minnyHappy(){
+  const w=document.getElementById('minny-wrap');
+  w.classList.add('happy');
+  setTimeout(()=>w.classList.remove('happy'),750);
+  const b=document.getElementById('speech-bubble');
+  b.textContent='Yay!!';b.style.color='#d4a017';
+  setTimeout(()=>{b.textContent=PHRASES[phraseIdx];b.style.color='';},900);
+}
+
+// ══════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════
+function toast(msg,type=''){
+  const el=document.createElement('div');
+  el.className='toast '+(type==='ok'?'ok':type==='err'?'err':'');
+  el.textContent=msg;
+  document.getElementById('toast-wrap').appendChild(el);
+  setTimeout(()=>el.remove(),3100);
+}
+async function api(path,opts={}){
+  const r=await fetch(path,{headers:{'Content-Type':'application/json'},...opts});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return r.json();
+}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+function fmt(iso){return iso?iso.slice(0,10):'-';}
+function toggleForm(id){
+  const el=document.getElementById(id);
+  el.classList.toggle('open');
+  if(el.classList.contains('open'))el.querySelector('input,textarea,select')?.focus();
+}
+
+// ══════════════════════════════════════
+// TABS
+// ══════════════════════════════════════
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+  if(name==='kb')loadKB();
+  if(name==='expiry')loadExpiry(curExpiryQ);
+  if(name==='users')loadUsers();
+}
+
+// ══════════════════════════════════════
+// KNOWLEDGE BASE
+// ══════════════════════════════════════
+let kbAll=[];let kbImg='';
+async function loadKB(){
+  minnyThink(true);
+  try{
+    kbAll=await api('/api/knowledge');
+    renderKB(kbAll);
+    document.getElementById('kb-count-badge').textContent='KB: '+kbAll.length;
+  }catch(e){toast('Failed to load KB','err');}
+  finally{minnyThink(false);}
+}
+function renderKB(docs){
+  const tb=document.getElementById('kb-tbody');
+  if(!docs?.length){
+    tb.innerHTML='<tr><td colspan="5"><div class="empty-note">No entries yet.<br>Click "+ Add Knowledge" to teach the bot.</div></td></tr>';
+    return;
+  }
+  tb.innerHTML=docs.map(d=>`<tr>
+    <td class="td-id">${d.id}</td>
+    <td class="td-content">${esc((d.content||'').slice(0,140)+((d.content?.length||0)>140?'...':''))}</td>
+    <td class="td-img">${d.has_image?'<span class="img-badge">IMG</span>':''}</td>
+    <td class="td-date">${fmt(d.created_at)}</td>
+    <td class="td-action"><button class="btn btn-red btn-xs" onclick="delKB(${d.id})">Delete</button></td>
+  </tr>`).join('');
+}
+function filterKB(q){
+  if(!q)return renderKB(kbAll);
+  renderKB(kbAll.filter(d=>(d.content||'').toLowerCase().includes(q.toLowerCase())));
+}
+function previewImg(input){
+  const f=input.files[0];if(!f){kbImg='';return;}
+  const r=new FileReader();
+  r.onload=e=>{kbImg=e.target.result.split(',')[1];const p=document.getElementById('kb-img-preview');p.src=e.target.result;p.style.display='block';};
+  r.readAsDataURL(f);
+}
+async function submitKB(){
+  const content=document.getElementById('kb-content').value.trim();
+  if(!content&&!kbImg){toast('Please enter content','err');return;}
+  minnyThink(true);
+  try{
+    const d=await api('/api/knowledge',{method:'POST',body:JSON.stringify({content,image_b64:kbImg,added_by:'dashboard'})});
+    toast('Saved! (ID: '+d.id+')','ok');minnyHappy();
+    toggleForm('kb-form');
+    document.getElementById('kb-content').value='';
+    document.getElementById('kb-img').value='';
+    document.getElementById('kb-img-preview').style.display='none';kbImg='';
+    await loadKB();
+  }catch(e){toast('Save failed','err');}
+  finally{minnyThink(false);}
+}
+async function delKB(id){
+  if(!confirm('Delete entry ['+id+']?'))return;
+  minnyThink(true);
+  try{
+    const d=await api('/api/knowledge/'+id,{method:'DELETE'});
+    toast(d.ok?'Deleted ['+id+']':'Not found ['+id+']',d.ok?'ok':'err');
+    if(d.ok)await loadKB();
+  }catch(e){toast('Delete failed','err');}
+  finally{minnyThink(false);}
+}
+
+// ══════════════════════════════════════
+// EXPIRY
+// ══════════════════════════════════════
+let curExpiryQ='7 วัน';
+function setExpiry(q,btn){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');curExpiryQ=q;loadExpiry(q);
+}
+function customExpiry(){
+  const q=document.getElementById('expiry-q').value.trim();if(!q)return;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  curExpiryQ=q;loadExpiry(q);
+}
+async function loadExpiry(q){
+  minnyThink(true);
+  document.getElementById('expiry-results').innerHTML='<div class="empty-note">Loading...</div>';
+  try{
+    const rows=await api('/api/expiry?q='+encodeURIComponent(q));
+    renderExpiry(rows);
+  }catch(e){document.getElementById('expiry-results').innerHTML='<div class="empty-note">Failed to load</div>';}
+  finally{minnyThink(false);}
+}
+function renderExpiry(rows){
+  const el=document.getElementById('expiry-results');
+  if(!rows?.length){el.innerHTML='<div class="empty-note">No expiring customers in this period</div>';return;}
+  el.innerHTML='<p style="font-size:13px;font-weight:700;color:var(--text-mid);margin-bottom:10px">Found '+rows.length+' record(s)</p>'+
+    rows.map(r=>{
+      const pkg=r.package?'Package: '+esc(r.package)+' &nbsp;':'';
+      const st=r.status?'<span class="status-tag">'+esc(r.status)+'</span>':'';
+      const ok=(r.status||'').toLowerCase().includes('active');
+      const copy='แจ้งหมดอายุ ลูกค้า '+r.shop;
+      return `<div class="expiry-card ${ok?'ok':''}">
+        <div style="flex:1"><div class="expiry-shop">${esc(r.shop)}</div><div class="expiry-meta">${pkg}${st}</div></div>
+        <div style="text-align:right;flex-shrink:0">
+          <div class="expiry-date">${r.expiry||'-'}</div>
+          <button class="btn btn-purple btn-xs" style="margin-top:8px" onclick="copyMsg('${esc(copy).replace(/'/g,"\\'")}')">Copy & Notify</button>
+        </div>
+      </div>`;
+    }).join('');
+}
+function copyMsg(msg){
+  navigator.clipboard.writeText(msg)
+    .then(()=>toast('Copied! Paste into Telegram.','ok'))
+    .catch(()=>prompt('Copy:',msg));
+}
+
+// ══════════════════════════════════════
+// TEST BOT
+// ══════════════════════════════════════
+function appendChat(html){const b=document.getElementById('chat-box');b.insertAdjacentHTML('beforeend',html);b.scrollTop=b.scrollHeight;}
+function showTyping(){
+  const id='t'+Date.now();
+  appendChat(`<div class="chat-msg msg-bot" id="${id}"><div class="msg-label">Minny</div><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>`);
+  return id;
+}
+async function sendMsg(){
+  const inp=document.getElementById('chat-input');
+  const q=inp.value.trim();if(!q)return;inp.value='';
+  appendChat(`<div class="chat-msg msg-user"><div class="msg-label">You</div><div class="bubble">${esc(q)}</div></div>`);
+  const tid=showTyping();minnyThink(true);
+  try{
+    const d=await api('/api/query',{method:'POST',body:JSON.stringify({question:q})});
+    document.getElementById(tid)?.remove();
+    const badge=d.kb_hit?'<span class="mode-badge mode-kb">KB</span>':'<span class="mode-badge mode-gpt">GPT</span>';
+    const img=d.has_image?' <span style="font-size:12px;color:var(--purple-l)">(has image in Telegram)</span>':'';
+    appendChat(`<div class="chat-msg msg-bot"><div class="msg-label">Minny ${badge}${img}</div><div class="bubble">${esc(d.answer||'(no answer)')}</div></div>`);
+    if(d.kb_hit)minnyHappy();
+  }catch(e){
+    document.getElementById(tid)?.remove();
+    appendChat(`<div class="chat-msg msg-bot"><div class="msg-label">Minny</div><div class="bubble" style="color:var(--red-l)">Error: ${esc(e.message)}</div></div>`);
+  }finally{minnyThink(false);}
+}
+function clearChat(){
+  document.getElementById('chat-box').innerHTML='<div class="chat-msg msg-bot"><div class="msg-label">Minny</div><div class="bubble">Chat cleared! Type a new question.</div></div>';
+}
+
+// ══════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════
+async function loadHistory(){
+  const cid=document.getElementById('history-chatid').value.trim();
+  if(!cid){toast('Enter a Chat ID first','err');return;}
+  minnyThink(true);
+  try{
+    const h=await api('/api/history/'+encodeURIComponent(cid));
+    const el=document.getElementById('history-list');
+    if(!h?.length){el.innerHTML='<div class="empty-note">No history for "'+esc(cid)+'"</div>';return;}
+    el.innerHTML='<p style="font-size:13px;font-weight:700;color:var(--text-mid);margin-bottom:10px">'+h.length+' messages — '+esc(cid)+'</p>'+
+      h.map(m=>`<div class="h-msg ${m.role}"><div class="h-role">${m.role==='user'?'User':'Minny'}</div>${esc(m.content)}</div>`).join('');
+  }catch(e){toast('Failed to load','err');}
+  finally{minnyThink(false);}
+}
+async function clearHistory(){
+  const cid=document.getElementById('history-chatid').value.trim();
+  if(!cid){toast('Enter a Chat ID first','err');return;}
+  if(!confirm('Clear history for "'+cid+'"?'))return;
+  minnyThink(true);
+  try{
+    await api('/api/history/'+encodeURIComponent(cid),{method:'DELETE'});
+    toast('History cleared','ok');
+    document.getElementById('history-list').innerHTML='<div class="empty-note">History cleared</div>';
+  }catch(e){toast('Failed to clear','err');}
+  finally{minnyThink(false);}
+}
+
+// ══════════════════════════════════════
+// USERS
+// ══════════════════════════════════════
+let usersAll=[];
+const RLBL={admin:'Admin',staff:'Staff',vip:'VIP',customer:'Customer',other:'Other'};
+const RCLS={admin:'r-admin',staff:'r-staff',vip:'r-vip',customer:'r-customer',other:'r-default'};
+
+async function loadUsers(){
+  minnyThink(true);
+  try{usersAll=await api('/api/users');renderUsers(usersAll);}
+  catch(e){toast('Failed to load users','err');}
+  finally{minnyThink(false);}
+}
+function renderUsers(users){
+  const tb=document.getElementById('users-tbody');
+  if(!users?.length){tb.innerHTML='<tr><td colspan="6"><div class="empty-note">No users yet.<br>Click "+ Add User" or type "จำ @username ชื่อ ..." in Telegram.</div></td></tr>';return;}
+  tb.innerHTML=users.map(u=>`<tr>
+    <td style="font-weight:700;font-size:14px">${esc(u.chat_id)}</td>
+    <td style="font-weight:600;font-size:15px">${esc(u.name)||'<span style="color:var(--text-mid)">-</span>'}</td>
+    <td><span class="role-badge ${RCLS[u.role]||'r-default'}">${RLBL[u.role]||u.role||'-'}</span></td>
+    <td class="td-notes">${esc(u.notes)||'-'}</td>
+    <td class="td-date">${fmt(u.updated_at)}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-amber btn-xs" style="margin-right:4px" onclick="editUser('${esc(u.chat_id).replace(/'/g,"\\'")}')">Edit</button>
+      <button class="btn btn-red btn-xs" onclick="delUser('${esc(u.chat_id).replace(/'/g,"\\'")}')">Delete</button>
+    </td>
+  </tr>`).join('');
+}
+function editUser(cid){
+  const u=usersAll.find(x=>x.chat_id===cid);if(!u)return;
+  document.getElementById('user-eid').value=cid;
+  document.getElementById('user-chatid').value=cid;
+  document.getElementById('user-chatid').disabled=true;
+  document.getElementById('user-name').value=u.name||'';
+  document.getElementById('user-role').value=u.role||'staff';
+  document.getElementById('user-notes').value=u.notes||'';
+  const w=document.getElementById('user-form');
+  if(!w.classList.contains('open'))toggleForm('user-form');
+}
+async function submitUser(){
+  const cid=(document.getElementById('user-chatid').value||'').trim();
+  const name=document.getElementById('user-name').value.trim();
+  const role=document.getElementById('user-role').value;
+  const notes=document.getElementById('user-notes').value.trim();
+  if(!cid){toast('Chat ID is required','err');return;}
+  minnyThink(true);
+  try{
+    await api('/api/users',{method:'POST',body:JSON.stringify({chat_id:cid,name,role,notes})});
+    toast('Saved "'+name+'"','ok');minnyHappy();
+    toggleForm('user-form');
+    document.getElementById('user-chatid').disabled=false;
+    ['user-chatid','user-name','user-notes'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('user-role').value='staff';
+    document.getElementById('user-eid').value='';
+    await loadUsers();
+  }catch(e){toast('Save failed','err');}
+  finally{minnyThink(false);}
+}
+async function delUser(cid){
+  if(!confirm('Delete "'+cid+'"?'))return;
+  minnyThink(true);
+  try{
+    const d=await api('/api/users/'+encodeURIComponent(cid),{method:'DELETE'});
+    toast(d.ok?'Deleted':'Not found',d.ok?'ok':'err');
+    if(d.ok)await loadUsers();
+  }catch(e){toast('Delete failed','err');}
+  finally{minnyThink(false);}
+}
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  loadKB();
+  document.getElementById('chat-input').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
+  document.getElementById('history-chatid').addEventListener('keydown',e=>{if(e.key==='Enter')loadHistory();});
+  document.getElementById('expiry-q').addEventListener('keydown',e=>{if(e.key==='Enter')customExpiry();});
+});
+</script>
+</body>
+</html>

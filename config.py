@@ -10,17 +10,13 @@ TELEGRAM_BOT_TOKEN: str = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENAI_API_KEY: str = os.environ["OPENAI_API_KEY"]
 OPENAI_MODEL: str = "gpt-4o-mini"
 
-# ===== Firebase =====
-FIREBASE_SERVICE_ACCOUNT_PATH: str = os.environ["FIREBASE_SERVICE_ACCOUNT_PATH"]
-FIRESTORE_COLLECTION: str = "knowledge"
+# ===== Cloudflare (shared) =====
+CF_ACCOUNT_ID: str = os.environ["CF_ACCOUNT_ID"]
+CF_API_TOKEN: str = os.environ["CF_API_TOKEN"]
+
+# ===== Cloudflare D1 (knowledge base + รูป base64) =====
+CF_D1_DATABASE_ID: str = os.environ["CF_D1_DATABASE_ID"]
 
 # ===== Google Sheets =====
 GOOGLE_SHEETS_CRED_PATH: str = os.environ["GOOGLE_SHEETS_CRED_PATH"]
 GOOGLE_SHEET_ID: str = os.environ["GOOGLE_SHEET_ID"]
-
-# ===== Cloudflare R2 =====
-CF_R2_BUCKET_NAME: str = os.environ["CF_R2_BUCKET_NAME"]
-CF_R2_ACCESS_KEY_ID: str = os.environ["CF_R2_ACCESS_KEY_ID"]
-CF_R2_SECRET_ACCESS_KEY: str = os.environ["CF_R2_SECRET_ACCESS_KEY"]
-CF_R2_ACCOUNT_ID: str = os.environ["CF_R2_ACCOUNT_ID"]
-CF_R2_PUBLIC_URL: str = os.environ.get("CF_R2_PUBLIC_URL", "")

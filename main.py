@@ -86,6 +86,8 @@ async def route_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if intent == "TEACH":
         await handlers.handle_teach(update, context)
+    elif intent == "REMEMBER":
+        await handlers.handle_remember(update, context)
     elif intent == "REWRITE":
         await handlers.handle_rewrite(update, context)
     elif intent == "EXPIRY":
@@ -118,6 +120,7 @@ def main() -> None:
     app.add_handler(CommandHandler("list", handlers.handle_list))
     app.add_handler(CommandHandler("forget", handlers.handle_forget))
     app.add_handler(CommandHandler("delete", handlers.handle_delete))
+    app.add_handler(CommandHandler("myid", handlers.handle_myid))
 
     # รับทั้ง text และ รูปภาพ (พร้อม caption)
     app.add_handler(

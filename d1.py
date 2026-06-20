@@ -60,6 +60,57 @@ async def init_table():
         )
     """)
     await _query("CREATE INDEX IF NOT EXISTS idx_conv_chat ON conversations(chat_id)")
+    await _query("""
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            chat_id    TEXT    PRIMARY KEY,
+            name       TEXT    NOT NULL DEFAULT '',
+            role       TEXT    NOT NULL DEFAULT '',
+            notes      TEXT    NOT NULL DEFAULT '',
+            updated_at TEXT    NOT NULL
+        )
+    """)
+
+
+# ──────────────────────────────────────────────
+# User Profiles (จำบุคคล)
+# ──────────────────────────────────────────────
+
+async def save_user(chat_id: str, name: str = "", role: str = "", notes: str = "") -> None:
+    """บันทึกหรืออัปเดต user profile"""
+    now = datetime.now(timezone.utc).isoformat()
+    await _query(
+        """INSERT INTO user_profiles (chat_id, name, role, notes, updated_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(chat_id) DO UPDATE SET
+             name=excluded.name, role=excluded.role,
+             notes=excluded.notes, updated_at=excluded.updated_at""",
+        [str(chat_id), name, role, notes, now],
+    )
+
+
+async def get_all_users() -> list[dict]:
+    """ดึง user profiles ทั้งหมด เรียงตามอัปเดตล่าสุด"""
+    return await _query(
+        "SELECT chat_id, name, role, notes, updated_at FROM user_profiles ORDER BY updated_at DESC"
+    )
+
+
+async def get_user(chat_id: str) -> dict | None:
+    """ดึง user profile เดียว"""
+    rows = await _query(
+        "SELECT chat_id, name, role, notes, updated_at FROM user_profiles WHERE chat_id = ?",
+        [str(chat_id)],
+    )
+    return rows[0] if rows else None
+
+
+async def delete_user(chat_id: str) -> bool:
+    """ลบ user profile"""
+    rows = await _query(
+        "DELETE FROM user_profiles WHERE chat_id = ? RETURNING chat_id",
+        [str(chat_id)],
+    )
+    return len(rows) > 0
 
 
 async def save_knowledge(

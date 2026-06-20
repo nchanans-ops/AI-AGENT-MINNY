@@ -1,11 +1,12 @@
 """
 handlers.py — logic 4 โหมด
-TEACH / QUERY / REWRITE / EXPIRY
+TEACH / QUERY / REWRITE / EXPIRY / REMEMBER
 """
 
 import asyncio
 import base64
 import logging
+import re
 from telegram import Update, Message
 from telegram.ext import ContextTypes
 
@@ -14,6 +15,95 @@ import gpt
 import sheets
 
 logger = logging.getLogger(__name__)
+
+_ROLE_DISPLAY = {
+    "admin": "Admin",
+    "staff": "Staff",
+    "vip": "VIP",
+    "customer": "Customer",
+    "other": "Other",
+}
+
+
+# ──────────────────────────────────────────────
+# REMEMBER — จำบุคคลจาก @username
+# ──────────────────────────────────────────────
+
+def _parse_remember(text: str) -> dict | None:
+    """Parse คำสั่งจำบุคคลหลายรูปแบบ:
+    - จำ @somchai ชื่อ สมชาย
+    - @somchai คือ สมชาย
+    - @somchai = สมชาย role admin
+    - เปลี่ยน @somchai เป็น สมชาย สมใจ
+    - @ann staff
+    คืน dict {identifier, name, role} หรือ None
+    """
+    username_m = re.search(r'@(\w+)', text)
+    if not username_m:
+        return None
+    identifier = '@' + username_m.group(1).lower()
+
+    # เอาส่วนหลัง @username มาแยก name/role
+    after = text[username_m.end():].strip()
+    # ลบ keyword นำหน้า
+    after = re.sub(r'^(?:ชื่อ|คือ|=|ว่า|เป็น|ให้ชื่อ)\s*', '', after, flags=re.I).strip()
+
+    # ดึง role keyword
+    role = ''
+    role_m = re.search(r'\b(admin|staff|vip|customer|other)\b', after, re.I)
+    if role_m:
+        role = role_m.group(1).lower()
+        after = (after[:role_m.start()] + after[role_m.end():]).strip()
+        after = re.sub(r'\brole\b', '', after, flags=re.I).strip()
+
+    # ถ้า after ว่างให้ดูก่อน @username (เช่น "สมชาย คือ @somchai")
+    if not after:
+        before = text[:username_m.start()].strip()
+        before = re.sub(r'^(?:จำ|บันทึก|register|remember|เปลี่ยน)\s*', '', before, flags=re.I).strip()
+        before = re.sub(r'\s*(?:ชื่อ|คือ|=|ว่า|เป็น)\s*$', '', before).strip()
+        after = before
+
+    name = after.strip()
+    if not name and not role:
+        return None
+    return {'identifier': identifier, 'name': name, 'role': role}
+
+
+async def handle_remember(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """บันทึก @username → ชื่อ/role ลง D1"""
+    message = update.effective_message
+    text = (message.text or '').strip()
+
+    parsed = _parse_remember(text)
+    if not parsed:
+        await message.reply_text(
+            "ไม่เข้าใจรูปแบบนะ ลองพิมพ์แบบนี้:\n\n"
+            "จำ @somchai ชื่อ สมชาย\n"
+            "@somchai คือ สมชาย\n"
+            "@somchai = สมชาย role admin\n"
+            "เปลี่ยน @ann เป็น อันนา staff"
+        )
+        return
+
+    try:
+        await d1.save_user(
+            chat_id=parsed['identifier'],
+            name=parsed['name'],
+            role=parsed['role'],
+            notes='',
+        )
+        parts = []
+        if parsed['name']:
+            parts.append(f"ชื่อ: {parsed['name']}")
+        if parsed['role']:
+            parts.append(f"Role: {_ROLE_DISPLAY.get(parsed['role'], parsed['role'])}")
+        await message.reply_text(
+            f"จำแล้วนะ {parsed['identifier']}\n" + "\n".join(parts)
+        )
+        logger.info(f"Saved user profile: {parsed}")
+    except Exception as e:
+        logger.error(f"Remember error: {e}")
+        await message.reply_text("บันทึกไม่สำเร็จ ลองใหม่นะ")
 
 
 # ──────────────────────────────────────────────
@@ -110,20 +200,26 @@ async def handle_teach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ──────────────────────────────────────────────
 
 def _kb_matches(question: str, content: str) -> bool:
-    """Bidirectional keyword match — รองรับภาษาไทยที่ไม่เว้นวรรค
-    ทิศ 1: คำจาก KB content ปรากฏอยู่ในคำถาม  (เช่น "ธีมสลิป" ใน "ขอธีมสลิปหน่อย")
-    ทิศ 2: คำจากคำถามปรากฏอยู่ใน KB content  (เช่น "ธีม" ใน content ที่มี "ธีมสลิป")
+    """Match คำถามกับ KB โดยใช้เฉพาะ keyword บรรทัดแรก
+    บรรทัดแรกของ KB ควรเป็น keywords คั่นด้วย comma เช่น:
+      "ธีมสลิป, ซื้อธีม, ตั้งค่าธีม"
+      "บัญชีรับเงิน"
+    ทิศ 1: keyword ใน KB ปรากฏใน question  ("ธีมสลิป" ใน "ขอธีมสลิปหน่อย")
+    ทิศ 2: คำใน question ปรากฏใน keyword KB  ("ธีม" ใน keyword "ธีมสลิป")
+    → ไม่ค้น body content เพื่อป้องกัน false-positive
     """
     q = question.lower().strip()
-    c = content.lower().strip()
-    if not c:
+    if not q or not content:
         return False
-    for word in c.split():          # คำจาก KB → หาในคำถาม
-        if len(word) >= 3 and word in q:
-            return True
-    for word in q.split():          # คำจากคำถาม → หาใน KB
-        if len(word) >= 3 and word in c:
-            return True
+
+    # ใช้เฉพาะบรรทัดแรกเป็น keyword zone
+    first_line = content.strip().split('\n')[0].lower()
+    keywords = [k.strip() for k in first_line.split(',') if k.strip()]
+
+    for kw in keywords:
+        if len(kw) >= 2:
+            if kw in q or q in kw:   # bidirectional substring
+                return True
     return False
 
 
@@ -214,6 +310,55 @@ async def handle_rewrite(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # ──────────────────────────────────────────────
 # LIST — แสดง knowledge ทั้งหมด
 # ──────────────────────────────────────────────
+
+async def handle_myid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """ตอบ Chat ID + Username และ auto-link @username → numeric chat_id"""
+    message = update.effective_message
+    user = update.effective_user
+    chat_id = str(message.chat_id)
+    full_name = user.full_name or "-"
+    tg_username = f"@{user.username.lower()}" if user.username else None
+
+    linked_msg = ""
+    try:
+        # ถ้ามี @username → หาใน D1 ว่าเคยบันทึกผ่าน "จำ @username" ไหม
+        if tg_username:
+            old = await d1.get_user(tg_username)
+            if old:
+                # ย้ายข้อมูลจาก @username → numeric chat_id
+                await d1.save_user(
+                    chat_id=chat_id,
+                    name=old['name'],
+                    role=old['role'],
+                    notes=old['notes'],
+                )
+                await d1.delete_user(tg_username)
+                linked_msg = f"\nเชื่อมข้อมูลจาก {tg_username} แล้ว (Role: {_ROLE_DISPLAY.get(old['role'], old['role']) or '-'})"
+
+        # ดึง profile ที่บันทึกอยู่ (ถ้ามี)
+        profile = await d1.get_user(chat_id)
+        profile_msg = ""
+        if profile and (profile.get('name') or profile.get('role')):
+            profile_msg = (
+                f"\n\nระบบรู้จักคุณว่า:\n"
+                f"ชื่อ: {profile['name'] or '-'}\n"
+                f"Role: {_ROLE_DISPLAY.get(profile['role'], profile['role']) or '-'}"
+            )
+    except Exception as e:
+        logger.error(f"myid profile lookup error: {e}")
+        profile_msg = ""
+        linked_msg = ""
+
+    await message.reply_text(
+        f"Chat ID ของคุณคือ:\n"
+        f"{chat_id}\n\n"
+        f"ชื่อ Telegram: {full_name}\n"
+        f"Username: {tg_username or '(ไม่มี)'}"
+        f"{linked_msg}"
+        f"{profile_msg}\n\n"
+        f"คัดลอก Chat ID ไปใส่ Dashboard แท็บ 'จำบุคคล' ได้เลย"
+    )
+
 
 async def handle_forget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """ล้าง conversation history ของ chat นี้"""
