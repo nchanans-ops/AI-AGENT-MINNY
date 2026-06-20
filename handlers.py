@@ -147,11 +147,16 @@ async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def handle_rewrite(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
-    raw = message.text or message.caption or ""
+    raw = (message.text or message.caption or "").strip()
+    chat_id = message.chat_id
 
     try:
-        rewritten = await gpt.rewrite_message(raw)
+        # ส่ง history ให้ GPT ด้วย — จะได้รู้วันที่/ข้อมูลจากข้อความก่อนหน้า
+        history = await d1.get_history(chat_id)
+        rewritten = await gpt.rewrite_message(raw, history)
         await message.reply_text(rewritten)
+        await d1.add_message(chat_id, "user", raw)
+        await d1.add_message(chat_id, "assistant", rewritten)
     except Exception as e:
         logger.error(f"Rewrite error: {e}")
         await message.reply_text("แต่งข้อความไม่สำเร็จ ลองใหม่นะ")

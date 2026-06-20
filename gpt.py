@@ -163,14 +163,19 @@ Thunder Solution ขอบพระคุณที่ไว้วางใจใ
 หากมีคำถามเพิ่มเติม แจ้งได้เลยนะคะ 😊"""
 
 
-async def rewrite_message(raw_message: str) -> str:
-    """ร่างข้อความสุภาพพร้อมส่งลูกค้า"""
+async def rewrite_message(
+    raw_message: str,
+    history: list[dict] | None = None,
+) -> str:
+    """ร่างข้อความสุภาพพร้อมส่งลูกค้า พร้อม history เพื่อรู้บริบทก่อนหน้า"""
+    messages = [{"role": "system", "content": REWRITE_SYSTEM}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": raw_message})
+
     resp = await client.chat.completions.create(
         model=config.OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": REWRITE_SYSTEM},
-            {"role": "user", "content": raw_message},
-        ],
+        messages=messages,
         max_tokens=800,
         temperature=0.4,
     )
