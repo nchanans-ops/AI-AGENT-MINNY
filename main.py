@@ -43,12 +43,28 @@ async def route_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await message.reply_text("ส่ง caption มาด้วยนะ เช่น /teach [ข้อมูล] หรือพิมพ์คำถาม")
         return
 
-    # /teach สั้นๆ โดยไม่ตรวจ intent (เร็วกว่า + ชัวร์กว่า)
+    # /teach สั้นๆ โดยไม่ตรวจ intent
     if text.strip().lower().startswith("/teach"):
         await handlers.handle_teach(update, context)
         return
 
-    # ส่งไป GPT classify
+    # ── KB-first: ค้น knowledge base ก่อน detect intent ──
+    # ถ้าเจอ → ตอบ verbatim ทันที ไม่เสีย GPT call เลย
+    # ไม่เจอ → detect intent ตามปกติ
+    try:
+        kb_answer = await handlers.try_kb_verbatim(text, message.chat_id)
+    except Exception as e:
+        logger.error(f"KB lookup error: {e}")
+        kb_answer = None
+
+    if kb_answer is not None:
+        logger.info(f"[{update.effective_user.id}] KB-hit verbatim text={text[:60]!r}")
+        await message.reply_text(kb_answer)
+        await d1.add_message(message.chat_id, "user", text)
+        await d1.add_message(message.chat_id, "assistant", kb_answer)
+        return
+
+    # ── ไม่เจอใน KB → detect intent ──
     try:
         intent = await gpt.detect_intent(text)
     except Exception as e:

@@ -17,6 +17,26 @@ logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────
+# KB-first verbatim lookup (ใช้ใน route_message ก่อน detect intent)
+# ──────────────────────────────────────────────
+
+async def try_kb_verbatim(question: str, chat_id) -> str | None:
+    """ค้น KB ด้วย bidirectional match
+    ถ้าเจอ → คืน content verbatim
+    ถ้าไม่เจอ → คืน None (ให้ route ตาม intent ต่อ)
+    """
+    all_knowledge = await d1.get_all_knowledge()
+    matched = [
+        doc for doc in all_knowledge
+        if _kb_matches(question, doc.get("content", ""))
+    ]
+    if not matched:
+        return None
+    parts = [doc.get("content", "").strip() for doc in matched if doc.get("content", "").strip()]
+    return "\n\n".join(parts) if parts else None
+
+
+# ──────────────────────────────────────────────
 # Helper
 # ──────────────────────────────────────────────
 
