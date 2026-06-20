@@ -85,6 +85,24 @@ async def handle_teach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # QUERY
 # ──────────────────────────────────────────────
 
+def _kb_matches(question: str, content: str) -> bool:
+    """Bidirectional keyword match — รองรับภาษาไทยที่ไม่เว้นวรรค
+    ทิศ 1: คำจาก KB content ปรากฏอยู่ในคำถาม  (เช่น "ธีมสลิป" ใน "ขอธีมสลิปหน่อย")
+    ทิศ 2: คำจากคำถามปรากฏอยู่ใน KB content  (เช่น "ธีม" ใน content ที่มี "ธีมสลิป")
+    """
+    q = question.lower().strip()
+    c = content.lower().strip()
+    if not c:
+        return False
+    for word in c.split():          # คำจาก KB → หาในคำถาม
+        if len(word) >= 3 and word in q:
+            return True
+    for word in q.split():          # คำจากคำถาม → หาใน KB
+        if len(word) >= 3 and word in c:
+            return True
+    return False
+
+
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     question = (message.text or message.caption or "").strip()
@@ -94,23 +112,24 @@ async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     try:
-        # keywords = ทั้งประโยค + แต่ละคำ (ยาว >= 2 ตัวอักษร)
-        words = [w for w in question.split() if len(w) >= 2]
-        keywords = list({question} | set(words))
-
-        # ดึง history + ค้น keyword ใน D1 พร้อมกัน (parallel → เร็วกว่า)
-        history, matched_docs = await asyncio.gather(
+        # ดึง history + knowledge ทั้งหมดพร้อมกัน (2 D1 queries แทน N queries)
+        history, all_knowledge = await asyncio.gather(
             d1.get_history(chat_id),
-            d1.find_by_keywords(keywords),
+            d1.get_all_knowledge(),
         )
 
+        # Python-side match — เร็วกว่า LIKE และรองรับไทยไม่เว้นวรรค
+        matched_docs = [
+            doc for doc in all_knowledge
+            if _kb_matches(question, doc.get("content", ""))
+        ]
+
         if matched_docs:
-            # ✅ เจอข้อมูลใน KB → ตอบ verbatim ตามที่สอนไว้เป๊ะๆ ไม่ผ่าน GPT
+            # ✅ เจอ → ตอบ verbatim เป๊ะๆ ไม่ผ่าน GPT เลย
             parts = [doc.get("content", "").strip() for doc in matched_docs if doc.get("content", "").strip()]
             answer = "\n\n".join(parts)
         else:
-            # ไม่เจอใน KB → ใช้ GPT ตอบจาก knowledge ทั้งหมด (fallback)
-            all_knowledge = await d1.get_all_knowledge()
+            # ไม่เจอ → GPT fallback (all_knowledge ดึงมาแล้ว ไม่ต้อง query ซ้ำ)
             answer = await gpt.answer_query(question, all_knowledge, history)
 
         await message.reply_text(answer)
