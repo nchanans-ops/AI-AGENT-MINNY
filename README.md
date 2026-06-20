@@ -1,4 +1,4 @@
-# Thunder Support Bot 🤖
+# Minny Support Bot 
 
 Telegram bot สำหรับทีม Support ของ Thunder Solution (API ตรวจสลิปปลอม)
 ทีมถามบอท → บอทสร้างคำตอบ → ทีม copy ไปส่งลูกค้า
