@@ -169,6 +169,23 @@ def parse_expiry_query(text: str) -> list[dict]:
     return get_expiring_next_n_days(7)
 
 
+def find_customer_expiry(name: str) -> dict | None:
+    """ค้นหาลูกค้าจากชื่อ (partial match) แล้วคืนข้อมูลหมดอายุ"""
+    name_lower = name.lower().strip()
+    if not name_lower:
+        return None
+    for row in _get_rows():
+        shop = str(row.get(COL_SHOP, "")).lower()
+        if name_lower in shop:
+            exp = _parse_thai_date(str(row.get(COL_EXPIRY, "")))
+            return {
+                "shop":   row.get(COL_SHOP, ""),
+                "expiry": exp.strftime("%d/%m/%Y") if exp else "",
+                "status": row.get(COL_STATUS, ""),
+            }
+    return None
+
+
 def format_expiry_list(rows: list[dict]) -> str:
     if not rows:
         return "ไม่มีลูกค้าหมดอายุในช่วงนี้ 🎉"

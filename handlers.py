@@ -145,15 +145,40 @@ async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # REWRITE
 # ──────────────────────────────────────────────
 
+_EXPIRY_KEYWORDS = ["แจ้งหมดอายุ", "เตือนหมดอายุ", "ต่ออายุบอท", "แจ้งต่ออายุ", "หมดอายุ"]
+
+def _extract_customer_name(text: str) -> str:
+    """ดึงชื่อลูกค้าจากข้อความ — หาคำหลัง 'ลูกค้า'"""
+    import re
+    m = re.search(r"ลูกค้า\s+(.+)", text)
+    if m:
+        return m.group(1).strip()
+    return ""
+
+
 async def handle_rewrite(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     raw = (message.text or message.caption or "").strip()
     chat_id = message.chat_id
 
     try:
-        # ส่ง history ให้ GPT ด้วย — จะได้รู้วันที่/ข้อมูลจากข้อความก่อนหน้า
+        # ถ้าเป็นข้อความแจ้งหมดอายุ → auto-lookup วันที่จาก Sheet
+        prompt = raw
+        is_expiry = any(kw in raw for kw in _EXPIRY_KEYWORDS)
+        if is_expiry:
+            cust_name = _extract_customer_name(raw)
+            if cust_name:
+                info = await asyncio.get_event_loop().run_in_executor(
+                    None, sheets.find_customer_expiry, cust_name
+                )
+                if info and info.get("expiry"):
+                    # inject วันที่เข้าไปใน prompt ให้ GPT รู้
+                    prompt = f"{raw}\n[วันหมดอายุของลูกค้า {info['shop']}: {info['expiry']}]"
+                elif info is None:
+                    prompt = f"{raw}\n[ไม่พบข้อมูลลูกค้าชื่อ '{cust_name}' ในระบบ]"
+
         history = await d1.get_history(chat_id)
-        rewritten = await gpt.rewrite_message(raw, history)
+        rewritten = await gpt.rewrite_message(prompt, history)
         await message.reply_text(rewritten)
         await d1.add_message(chat_id, "user", raw)
         await d1.add_message(chat_id, "assistant", rewritten)
