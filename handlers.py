@@ -165,12 +165,33 @@ async def handle_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         for doc in docs:
             content = doc.get("content", "") or "(ไม่มีข้อความ)"
             has_img = "🖼 " if doc.get("image_b64") else ""
-            lines.append(f"{has_img}• {content[:80]}{'...' if len(content) > 80 else ''}")
+            doc_id = doc.get("id", "?")
+            lines.append(f"[{doc_id}] {has_img}{content[:80]}{'...' if len(content) > 80 else ''}")
 
+        lines.append("\nลบรายการ: /delete [id]")
         await message.reply_text("\n".join(lines))
     except Exception as e:
         logger.error(f"List error: {e}")
         await message.reply_text("ดึงข้อมูลไม่สำเร็จ ลองใหม่นะ")
+
+
+async def handle_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """ลบ knowledge entry ด้วย id — /delete [id]"""
+    message = update.effective_message
+    args = context.args
+    if not args or not args[0].isdigit():
+        await message.reply_text("ใส่ id ด้วยนะ เช่น /delete 3\nดู id ได้จาก /list")
+        return
+    doc_id = int(args[0])
+    try:
+        ok = await d1.delete_knowledge(doc_id)
+        if ok:
+            await message.reply_text(f"ลบ entry [{doc_id}] แล้ว ✅")
+        else:
+            await message.reply_text(f"ไม่เจอ entry [{doc_id}] นะ ลองเช็ก /list ก่อน")
+    except Exception as e:
+        logger.error(f"Delete error: {e}")
+        await message.reply_text("ลบไม่สำเร็จ ลองใหม่นะ")
 
 
 # ──────────────────────────────────────────────

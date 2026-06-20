@@ -9,12 +9,14 @@ import asyncio
 from telegram import Update
 from telegram.ext import (
     Application,
+    CommandHandler,
     MessageHandler,
     filters,
     ContextTypes,
 )
 
 import config
+import d1
 import gpt
 import handlers
 
@@ -62,20 +64,34 @@ async def route_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await handlers.handle_rewrite(update, context)
     elif intent == "EXPIRY":
         await handlers.handle_expiry(update, context)
-    else:  # QUERY (default)
+    elif intent == "QUERY":
         await handlers.handle_query(update, context)
+    else:  # CHAT (default)
+        await handlers.handle_chat(update, context)
 
 
 # ──────────────────────────────────────────────
 # เริ่มบอท
 # ──────────────────────────────────────────────
 
+async def post_init(app) -> None:
+    """สร้าง D1 table ตอน startup (ถ้ายังไม่มี)"""
+    await d1.init_table()
+    logger.info("D1 table ready")
+
+
 def main() -> None:
     app = (
         Application.builder()
         .token(config.TELEGRAM_BOT_TOKEN)
+        .post_init(post_init)
         .build()
     )
+
+    # commands
+    app.add_handler(CommandHandler("list", handlers.handle_list))
+    app.add_handler(CommandHandler("forget", handlers.handle_forget))
+    app.add_handler(CommandHandler("delete", handlers.handle_delete))
 
     # รับทั้ง text และ รูปภาพ (พร้อม caption)
     app.add_handler(

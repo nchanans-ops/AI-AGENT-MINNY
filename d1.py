@@ -125,6 +125,15 @@ async def clear_history(chat_id: str | int) -> None:
     await _query("DELETE FROM conversations WHERE chat_id = ?", [str(chat_id)])
 
 
+async def delete_knowledge(doc_id: int) -> bool:
+    """ลบ knowledge entry ด้วย id คืน True ถ้าลบสำเร็จ"""
+    rows = await _query(
+        "DELETE FROM knowledge WHERE id = ? RETURNING id",
+        [doc_id],
+    )
+    return len(rows) > 0
+
+
 async def search_knowledge(keyword: str) -> list[dict]:
     """full-text search แบบ LIKE"""
     return await _query(
