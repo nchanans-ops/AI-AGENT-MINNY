@@ -56,24 +56,24 @@ async function deleteKnowledge(db, id) {
   return meta.changes > 0;
 }
 
-async function getHistory(db, chatId) {
+async function getHistory(db, userId) {
   const { results } = await db.prepare(
     'SELECT role, content FROM conversations WHERE chat_id = ? ORDER BY id ASC'
-  ).bind(String(chatId)).all();
+  ).bind(String(userId)).all();
   return results || [];
 }
 
-async function addMessage(db, chatId, role, content) {
+async function addMessage(db, userId, role, content) {
   const now = new Date().toISOString();
   await db.prepare(
     'INSERT INTO conversations (chat_id, role, content, created_at) VALUES (?, ?, ?, ?)'
-  ).bind(String(chatId), role, content, now).run();
+  ).bind(String(userId), role, content, now).run();
   // Keep last 10 messages per chat
   await db.prepare(`
     DELETE FROM conversations WHERE chat_id = ? AND id NOT IN (
       SELECT id FROM conversations WHERE chat_id = ? ORDER BY id DESC LIMIT 10
     )
-  `).bind(String(chatId), String(chatId)).run();
+  `).bind(String(userId), String(userId)).run();
 }
 
 async function clearHistory(db, chatId) {
@@ -456,7 +456,8 @@ async function handleUpdate(update, env) {
   const message = update.message || update.edited_message;
   if (!message) return;
 
-  const chatId = message.chat.id;
+  const chatId = message.chat.id;           // ส่งข้อความไปที่นี่ (chat/group)
+  const userId = String(message.from?.id || chatId); // lookup profile/history ตาม user จริง
   const text = (message.text || message.caption || '').trim();
   const { TELEGRAM_BOT_TOKEN: token, OPENAI_API_KEY: openaiKey, DB: db } = env;
 
@@ -467,7 +468,7 @@ async function handleUpdate(update, env) {
 
   // ── Commands ──
   if (text === '/myid') { await handleMyId(message, env); return; }
-  if (text === '/forget') { await clearHistory(db, chatId); await tgSend(chatId, 'ลืมหมดแล้วนะ 🧹', token); return; }
+  if (text === '/forget') { await clearHistory(db, userId); await tgSend(chatId, 'ลืมหมดแล้วนะ 🧹', token); return; }
   if (text === '/list') { await handleList(message, env); return; }
 
   const deleteM = text.match(/^\/delete\s+(\d+)$/);
@@ -497,14 +498,14 @@ async function handleUpdate(update, env) {
       } else if (answerText) {
         await tgSend(chatId, answerText, token);
       }
-      await addMessage(db, chatId, 'user', text);
-      await addMessage(db, chatId, 'assistant', answerText);
+      await addMessage(db, userId, 'user', text);
+      await addMessage(db, userId, 'assistant', answerText);
       return;
     }
   }
 
-  // ── User profile lookup ──
-  const userProfile = await getUser(db, String(chatId));
+  // ── User profile lookup (ใช้ userId = from.id เสมอ ทั้ง DM และกลุ่ม) ──
+  const userProfile = await getUser(db, userId);
 
   // ── Intent detection ──
   const intent = await detectIntent(text, openaiKey);
@@ -530,8 +531,8 @@ async function handleUpdate(update, env) {
           reply = lines.join('\n\n');
         }
         await tgSend(chatId, reply, token);
-        await addMessage(db, chatId, 'user', text);
-        await addMessage(db, chatId, 'assistant', reply);
+        await addMessage(db, userId, 'user', text);
+        await addMessage(db, userId, 'assistant', reply);
       } catch (e) {
         await tgSend(chatId, `โหลดข้อมูลหมดอายุไม่ได้: ${e.message}`, token);
       }
@@ -539,7 +540,7 @@ async function handleUpdate(update, env) {
       await tgSend(chatId, 'ยังไม่ได้เชื่อม Google Sheets นะ', token);
     }
   } else if (intent === 'REWRITE') {
-    const history = await getHistory(db, chatId);
+    const history = await getHistory(db, userId);
     // ถ้า request เกี่ยวกับหมดอายุ → ใช้ template ตรงๆ ไม่ผ่าน GPT
     if (/หมดอายุ|ต่ออายุ|เตือนหมด|แจ้งหมด/.test(text)) {
       let dateStr = '[ใส่วันที่]';
@@ -564,27 +565,27 @@ async function handleUpdate(update, env) {
 
       const reply = `สวัสดีค่ะคุณลูกค้า 😊\nขออนุญาตแจ้งให้ทราบว่า ระบบบอทเช็คสลิปของคุณลูกค้าใกล้ครบกำหนดใช้งานแล้วค่ะ\nโดยจะสิ้นสุดในวันที่ ${dateStr}\nหากคุณลูกค้าต้องการต่ออายุ สามารถแจ้งแอดมินเพื่อทำการต่ออายุได้เลยนะคะ 🙏💖\nThunder Solution ขอบพระคุณที่ไว้วางใจใช้บริการค่ะ\nหากมีคำถามเพิ่มเติม แจ้งได้เลยนะคะ 😊`;
       await tgSend(chatId, reply, token);
-      await addMessage(db, chatId, 'user', text);
-      await addMessage(db, chatId, 'assistant', reply);
+      await addMessage(db, userId, 'user', text);
+      await addMessage(db, userId, 'assistant', reply);
     } else {
       const reply = await rewriteMessage(text, history, openaiKey);
       await tgSend(chatId, reply, token);
-      await addMessage(db, chatId, 'user', text);
-      await addMessage(db, chatId, 'assistant', reply);
+      await addMessage(db, userId, 'user', text);
+      await addMessage(db, userId, 'assistant', reply);
     }
   } else if (intent === 'QUERY') {
-    const [history, allKB] = await Promise.all([getHistory(db, chatId), getAllKnowledge(db)]);
+    const [history, allKB] = await Promise.all([getHistory(db, userId), getAllKnowledge(db)]);
     const matched = allKB.filter(d => kbMatches(text, d.content || ''));
     const reply = await answerQuery(text, matched.length ? matched : allKB, history, openaiKey);
     await tgSend(chatId, reply, token);
-    await addMessage(db, chatId, 'user', text);
-    await addMessage(db, chatId, 'assistant', reply);
+    await addMessage(db, userId, 'user', text);
+    await addMessage(db, userId, 'assistant', reply);
   } else {
-    const [history, allKB] = await Promise.all([getHistory(db, chatId), getAllKnowledge(db)]);
+    const [history, allKB] = await Promise.all([getHistory(db, userId), getAllKnowledge(db)]);
     const reply = await chatReply(text, history, allKB, openaiKey, userProfile);
     await tgSend(chatId, reply, token);
-    await addMessage(db, chatId, 'user', text);
-    await addMessage(db, chatId, 'assistant', reply);
+    await addMessage(db, userId, 'user', text);
+    await addMessage(db, userId, 'assistant', reply);
   }
 }
 
