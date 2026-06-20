@@ -130,20 +130,42 @@ def get_expiring_by_month(year: int, month: int) -> list[dict]:
 
 
 def parse_expiry_query(text: str) -> list[dict]:
-    """วิเคราะห์คำถามแล้วคืนรายการหมดอายุที่ตรง"""
-    # เดือนที่ระบุชื่อ
-    for th_name, month_num in {**THAI_MONTH_FULL, **THAI_MONTH_SHORT}.items():
-        if th_name in text:
-            today = date.today()
-            year = today.year
-            if month_num < today.month:
-                year += 1
-            return get_expiring_by_month(year, month_num)
+    """วิเคราะห์คำถามแล้วคืนรายการหมดอายุที่ตรง
+    รองรับ: ชื่อเดือนทุกรูปแบบ, เลขเดือน, สัปดาห์หน้า, เดือนหน้า ฯลฯ
+    """
+    today = date.today()
 
+    # ── สัปดาห์หน้า / อาทิตย์หน้า ──
+    if any(w in text for w in ["สัปดาห์หน้า", "อาทิตย์หน้า"]):
+        return get_expiring_next_n_days(7)
+
+    # ── เดือนหน้า ──
+    if "เดือนหน้า" in text:
+        nm = today.month % 12 + 1
+        ny = today.year + (1 if today.month == 12 else 0)
+        return get_expiring_by_month(ny, nm)
+
+    # ── เดือนนี้ ──
     if "เดือนนี้" in text:
         return get_expiring_this_month()
 
-    # default: 7 วันข้างหน้า
+    # ── เลขเดือน: "เดือน 7", "เดือนที่7", "เดือน7" ──
+    m = re.search(r"เดือน(?:ที่)?\s*(\d{1,2})", text)
+    if m:
+        mn = int(m.group(1))
+        if 1 <= mn <= 12:
+            yr = today.year + (1 if mn < today.month else 0)
+            return get_expiring_by_month(yr, mn)
+
+    # ── ชื่อเดือนไทย (เรียงยาว→สั้น กัน false positive) ──
+    all_months = {**THAI_MONTH_FULL, **THAI_MONTH_SHORT}
+    for th_name in sorted(all_months, key=len, reverse=True):
+        if th_name in text:
+            mn = all_months[th_name]
+            yr = today.year + (1 if mn < today.month else 0)
+            return get_expiring_by_month(yr, mn)
+
+    # ── default: 7 วันข้างหน้า ──
     return get_expiring_next_n_days(7)
 
 
