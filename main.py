@@ -3,6 +3,7 @@ main.py — Thunder Support Bot
 Entry point: รับ message → detect intent → route ไป handler ที่ถูกต้อง
 """
 
+import base64
 import logging
 import asyncio
 
@@ -59,9 +60,18 @@ async def route_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if kb_answer is not None:
         logger.info(f"[{update.effective_user.id}] KB-hit verbatim text={text[:60]!r}")
-        await message.reply_text(kb_answer)
+        answer_text = kb_answer["text"]
+        images = kb_answer["images"]
+        # ส่งรูปแรกพร้อม caption ถ้ามี ส่วนรูปที่เหลือส่งแยก
+        if images:
+            first_img = base64.b64decode(images[0])
+            await message.reply_photo(photo=first_img, caption=answer_text or None)
+            for img_b64 in images[1:]:
+                await message.reply_photo(photo=base64.b64decode(img_b64))
+        elif answer_text:
+            await message.reply_text(answer_text)
         await d1.add_message(message.chat_id, "user", text)
-        await d1.add_message(message.chat_id, "assistant", kb_answer)
+        await d1.add_message(message.chat_id, "assistant", answer_text)
         return
 
     # ── ไม่เจอใน KB → detect intent ──

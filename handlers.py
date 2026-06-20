@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 # KB-first verbatim lookup (ใช้ใน route_message ก่อน detect intent)
 # ──────────────────────────────────────────────
 
-async def try_kb_verbatim(question: str, chat_id) -> str | None:
+async def try_kb_verbatim(question: str, chat_id) -> dict | None:
     """ค้น KB ด้วย bidirectional match
-    ถ้าเจอ → คืน content verbatim
-    ถ้าไม่เจอ → คืน None (ให้ route ตาม intent ต่อ)
+    ถ้าเจอ → คืน {"text": ..., "images": [base64, ...]}
+    ถ้าไม่เจอ → คืน None
     """
     all_knowledge = await d1.get_all_knowledge()
     matched = [
@@ -33,7 +33,11 @@ async def try_kb_verbatim(question: str, chat_id) -> str | None:
     if not matched:
         return None
     parts = [doc.get("content", "").strip() for doc in matched if doc.get("content", "").strip()]
-    return "\n\n".join(parts) if parts else None
+    images = [doc["image_b64"] for doc in matched if doc.get("image_b64")]
+    return {
+        "text": "\n\n".join(parts) if parts else "",
+        "images": images,
+    }
 
 
 # ──────────────────────────────────────────────
