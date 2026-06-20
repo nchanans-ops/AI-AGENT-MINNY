@@ -1110,10 +1110,13 @@ function renderKB(docs){
   }
   tb.innerHTML=docs.map(d=>`<tr>
     <td class="td-id">${d.id}</td>
-    <td class="td-content">${esc((d.content||'').slice(0,140)+((d.content?.length||0)>140?'...':''))}</td>
+    <td class="td-content" style="cursor:pointer;" onclick="openKBEdit(${d.id})" title="Click to edit">${esc((d.content||'').slice(0,140)+((d.content?.length||0)>140?'...':''))}</td>
     <td class="td-img">${d.has_image?'<span class="img-badge">IMG</span>':''}</td>
     <td class="td-date">${fmt(d.created_at)}</td>
-    <td class="td-action"><button class="btn btn-red btn-xs" onclick="delKB(${d.id})">Delete</button></td>
+    <td class="td-action" style="display:flex;gap:5px;">
+      <button class="btn btn-amber btn-xs" onclick="openKBEdit(${d.id})">Edit</button>
+      <button class="btn btn-red btn-xs" onclick="delKB(${d.id})">Delete</button>
+    </td>
   </tr>`).join('');
 }
 function filterKB(q){
@@ -1327,6 +1330,33 @@ async function delUser(cid){
 }
 
 // ══════════════════════════════════════
+// ══════════════════════════════════════
+// KB EDIT MODAL
+// ══════════════════════════════════════
+let kbEditId = null;
+function openKBEdit(id) {
+  const doc = kbAll.find(d => d.id === id);
+  if (!doc) return;
+  kbEditId = id;
+  document.getElementById('kb-edit-id').textContent = 'ID: ' + id;
+  document.getElementById('kb-edit-content').value = doc.content || '';
+  document.getElementById('kb-modal').style.display = 'flex';
+}
+function closeKBModal() {
+  document.getElementById('kb-modal').style.display = 'none';
+  kbEditId = null;
+}
+async function saveKBEdit() {
+  const content = document.getElementById('kb-edit-content').value.trim();
+  if (!content) { toast('Please enter content', 'err'); return; }
+  try {
+    await api('/api/knowledge/' + kbEditId, { method: 'PUT', body: JSON.stringify({ content }) });
+    toast('Saved!', 'ok');
+    closeKBModal();
+    await loadKB();
+  } catch(e) { toast('Save failed', 'err'); }
+}
+
 // INIT
 // ══════════════════════════════════════
 document.addEventListener('DOMContentLoaded',()=>{
@@ -1336,5 +1366,24 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('expiry-q').addEventListener('keydown',e=>{if(e.key==='Enter')customExpiry();});
 });
 </script>
+
+<!-- KB Edit Modal -->
+<div id="kb-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--parch);border:3px solid var(--wood-dark);border-radius:4px;padding:28px 24px;width:min(600px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.4);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-family:'Press Start 2P',monospace;font-size:13px;color:var(--wood-dark);">EDIT KNOWLEDGE</span>
+      <span id="kb-edit-id" style="font-size:12px;color:var(--text-mid);"></span>
+    </div>
+    <textarea id="kb-edit-content" rows="10"
+      style="width:100%;box-sizing:border-box;font-family:'Chakra Petch',sans-serif;font-size:14px;
+             padding:12px;border:2px solid var(--parch-border);background:var(--parch-light);
+             border-radius:3px;resize:vertical;color:var(--text-dark);line-height:1.7;">
+    </textarea>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn" onclick="closeKBModal()" style="background:var(--parch-mid);color:var(--text-dark);border:2px solid var(--parch-border);">Cancel</button>
+      <button class="btn btn-green" onclick="saveKBEdit()">Save</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

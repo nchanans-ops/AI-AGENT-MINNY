@@ -686,7 +686,7 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     };
 
     if (method === 'OPTIONS') return new Response('', { headers: cors });
@@ -721,10 +721,18 @@ export default {
         }
       }
 
-      if (pathname.match(/^\/api\/knowledge\/\d+$/) && method === 'DELETE') {
+      if (pathname.match(/^\/api\/knowledge\/\d+$/)) {
         const id = parseInt(pathname.split('/')[3]);
-        const ok = await deleteKnowledge(env.DB, id);
-        return json({ ok });
+        if (method === 'DELETE') {
+          const ok = await deleteKnowledge(env.DB, id);
+          return json({ ok });
+        }
+        if (method === 'PUT') {
+          const data = await request.json();
+          await env.DB.prepare('UPDATE knowledge SET content = ? WHERE id = ?')
+            .bind(data.content || '', id).run();
+          return json({ ok: true });
+        }
       }
 
       // ── History ──
