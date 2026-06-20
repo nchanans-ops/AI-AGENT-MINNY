@@ -3,13 +3,14 @@ handlers.py — logic 4 โหมด
 TEACH / QUERY / REWRITE / EXPIRY
 """
 
+import asyncio
+import base64
 import logging
 from telegram import Update, Message
 from telegram.ext import ContextTypes
 
-import firebase
+import d1
 import gpt
-import r2_storage
 import sheets
 
 logger = logging.getLogger(__name__)
@@ -19,15 +20,14 @@ logger = logging.getLogger(__name__)
 # Helper
 # ──────────────────────────────────────────────
 
-async def _get_image_bytes(message: Message, context: ContextTypes.DEFAULT_TYPE) -> tuple[bytes, str]:
-    """ดึง bytes ของรูปจาก Telegram message คืนค่า (bytes, filename)"""
+async def _get_image_b64(message: Message, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """ดึงรูปจาก Telegram แล้ว encode เป็น base64 string"""
     photo = message.photo[-1] if message.photo else None
     if not photo:
-        return b"", ""
+        return ""
     file = await context.bot.get_file(photo.file_id)
     file_bytes = await file.download_as_bytearray()
-    filename = f"{photo.file_id}.jpg"
-    return bytes(file_bytes), filename
+    return base64.b64encode(bytes(file_bytes)).decode("utf-8")
 
 
 def _strip_teach_prefix(text: str) -> str:
@@ -47,7 +47,6 @@ async def handle_teach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = update.effective_user
     added_by = user.username or user.full_name or str(user.id)
 
-    # ดึงข้อความ (อาจมาจาก caption ถ้าส่งรูป)
     raw_text = message.caption or message.text or ""
     content = _strip_teach_prefix(raw_text)
 
@@ -55,31 +54,30 @@ async def handle_teach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await message.reply_text("ส่งข้อมูลมาด้วยนะ เช่น /teach วิธีต่ออายุคือ...")
         return
 
-    # Upload รูปถ้ามี
-    image_url = ""
+    # เก็บรูปเป็น base64 ใน D1
+    image_b64 = ""
     if message.photo:
         try:
-            img_bytes, filename = await _get_image_bytes(message, context)
-            image_url = r2_storage.upload_image(img_bytes, filename)
+            image_b64 = await _get_image_b64(message, context)
         except Exception as e:
-            logger.error(f"R2 upload error: {e}")
-            await message.reply_text("อัปโหลดรูปไม่สำเร็จ ลองใหม่นะ")
+            logger.error(f"Image encode error: {e}")
+            await message.reply_text("โหลดรูปไม่สำเร็จ ลองใหม่นะ")
             return
 
-    if not content and not image_url:
+    if not content and not image_b64:
         await message.reply_text("ไม่มีเนื้อหาให้บันทึกเลย ลองใหม่นะ")
         return
 
     try:
-        doc_id = firebase.save_knowledge(
+        doc_id = await d1.save_knowledge(
             content=content,
-            image_url=image_url,
+            image_b64=image_b64,
             added_by=added_by,
         )
-        logger.info(f"Knowledge saved: {doc_id} by {added_by}")
+        logger.info(f"Knowledge saved: id={doc_id} by {added_by}")
         await message.reply_text("บันทึกแล้วนะ 👍")
     except Exception as e:
-        logger.error(f"Firebase save error: {e}")
+        logger.error(f"D1 save error: {e}")
         await message.reply_text("บันทึกไม่สำเร็จ ลองใหม่นะ")
 
 
@@ -89,12 +87,36 @@ async def handle_teach(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
-    question = message.text or message.caption or ""
+    question = (message.text or message.caption or "").strip()
+    chat_id = message.chat_id
+
+    if not question:
+        return
 
     try:
-        knowledge_docs = firebase.get_all_knowledge()
-        answer = await gpt.answer_query(question, knowledge_docs)
+        # keywords = ทั้งประโยค + แต่ละคำ (ยาว >= 2 ตัวอักษร)
+        words = [w for w in question.split() if len(w) >= 2]
+        keywords = list({question} | set(words))
+
+        # ดึง history + ค้น keyword ใน D1 พร้อมกัน (parallel → เร็วกว่า)
+        history, matched_docs = await asyncio.gather(
+            d1.get_history(chat_id),
+            d1.find_by_keywords(keywords),
+        )
+
+        if matched_docs:
+            # ✅ เจอข้อมูลใน KB → ตอบ verbatim ตามที่สอนไว้เป๊ะๆ ไม่ผ่าน GPT
+            parts = [doc.get("content", "").strip() for doc in matched_docs if doc.get("content", "").strip()]
+            answer = "\n\n".join(parts)
+        else:
+            # ไม่เจอใน KB → ใช้ GPT ตอบจาก knowledge ทั้งหมด (fallback)
+            all_knowledge = await d1.get_all_knowledge()
+            answer = await gpt.answer_query(question, all_knowledge, history)
+
         await message.reply_text(answer)
+        await d1.add_message(chat_id, "user", question)
+        await d1.add_message(chat_id, "assistant", answer)
+
     except Exception as e:
         logger.error(f"Query error: {e}")
         await message.reply_text("เกิดข้อผิดพลาด ลองใหม่นะ")
@@ -114,6 +136,66 @@ async def handle_rewrite(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     except Exception as e:
         logger.error(f"Rewrite error: {e}")
         await message.reply_text("แต่งข้อความไม่สำเร็จ ลองใหม่นะ")
+
+
+# ──────────────────────────────────────────────
+# LIST — แสดง knowledge ทั้งหมด
+# ──────────────────────────────────────────────
+
+async def handle_forget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """ล้าง conversation history ของ chat นี้"""
+    message = update.effective_message
+    try:
+        await d1.clear_history(message.chat_id)
+        await message.reply_text("ลืมหมดแล้วนะ 🧹 เริ่มใหม่ได้เลย")
+    except Exception as e:
+        logger.error(f"Forget error: {e}")
+        await message.reply_text("ล้าง history ไม่สำเร็จ ลองใหม่นะ")
+
+
+async def handle_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    try:
+        docs = await d1.get_all_knowledge()
+        if not docs:
+            await message.reply_text("ยังไม่มี knowledge เลย ลอง /teach ก่อนได้เลย")
+            return
+
+        lines = [f"📚 Knowledge ทั้งหมด ({len(docs)} รายการ)\n"]
+        for doc in docs:
+            content = doc.get("content", "") or "(ไม่มีข้อความ)"
+            has_img = "🖼 " if doc.get("image_b64") else ""
+            lines.append(f"{has_img}• {content[:80]}{'...' if len(content) > 80 else ''}")
+
+        await message.reply_text("\n".join(lines))
+    except Exception as e:
+        logger.error(f"List error: {e}")
+        await message.reply_text("ดึงข้อมูลไม่สำเร็จ ลองใหม่นะ")
+
+
+# ──────────────────────────────────────────────
+# CHAT
+# ──────────────────────────────────────────────
+
+async def handle_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    text = (message.text or message.caption or "").strip()
+    chat_id = message.chat_id
+
+    try:
+        # ดึง history + knowledge พร้อมกัน (parallel)
+        history, knowledge_docs = await asyncio.gather(
+            d1.get_history(chat_id),
+            d1.get_all_knowledge(),
+        )
+        reply = await gpt.chat_reply(text, history, knowledge_docs)
+
+        await message.reply_text(reply)
+        await d1.add_message(chat_id, "user", text)
+        await d1.add_message(chat_id, "assistant", reply)
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        await message.reply_text("อุ๊ย เกิดข้อผิดพลาด ลองใหม่นะ")
 
 
 # ──────────────────────────────────────────────
