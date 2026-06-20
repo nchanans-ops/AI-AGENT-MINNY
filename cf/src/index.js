@@ -493,8 +493,10 @@ async function handleUpdate(update, env) {
       const answerText = parts.join('\n\n');
 
       if (images.length > 0) {
-        await tgSendPhoto(chatId, images[0], answerText || undefined, token);
-        for (const img of images.slice(1)) await tgSendPhoto(chatId, img, undefined, token);
+        // ส่งรูปทุกรูปก่อน (ไม่ใส่ caption เพราะ content อาจยาวเกิน 1024 ตัว)
+        for (const img of images) await tgSendPhoto(chatId, img, undefined, token);
+        // ส่ง text แยกถ้ามี
+        if (answerText) await tgSend(chatId, answerText, token);
       } else if (answerText) {
         await tgSend(chatId, answerText, token);
       }
