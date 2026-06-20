@@ -1,0 +1,6 @@
+.env
+firebase-service-account.json
+google-sheets-cred.json
+__pycache__/
+*.pyc
+.DS_Store
