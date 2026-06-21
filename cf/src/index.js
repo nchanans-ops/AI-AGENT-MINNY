@@ -125,6 +125,13 @@ const THAI_MONTH_FULL = {
   'มกราคม':1,'กุมภาพันธ์':2,'มีนาคม':3,'เมษายน':4,
   'พฤษภาคม':5,'มิถุนายน':6,'กรกฎาคม':7,'สิงหาคม':8,
   'กันยายน':9,'ตุลาคม':10,'พฤศจิกายน':11,'ธันวาคม':12,
+  // คำย่อ/พิมพ์ผิดที่ใช้บ่อย
+  'มกรา':1,'กุมภา':2,'มีนา':3,'เมษา':4,
+  'พฤษภา':5,'มิถุนา':6,'กรกฎา':7,'สิงหา':8,
+  'กันยา':9,'ตุลา':10,'พฤศจิกา':11,'ธันวา':12,
+  'ม.ค':1,'ก.พ':2,'มี.ค':3,'เม.ย':4,
+  'พ.ค':5,'มิ.ย':6,'ก.ค':7,'ส.ค':8,
+  'ก.ย':9,'ต.ค':10,'พ.ย':11,'ธ.ค':12,
 };
 
 function parseThaiDate(value) {
@@ -670,8 +677,9 @@ async function handleUpdate(update, env) {
     }
   } else if (intent === 'QUERY') {
     const [history, allKB, allUsers] = await Promise.all([getHistory(db, userId), getAllKnowledge(db), getAllUsers(db)]);
-    // ถ้า Gen Z mode active → ไป chatReply แทน (ตอบแบบมีชีวิตชีวา ไม่ติด KB)
-    if (isGenZMode(text, history)) {
+    // ถ้า Gen Z mode active และไม่ใช่คำถามลูกค้า/หมดอายุ → ไป chatReply
+    const isExpiryQ = /หมดอายุ|ลูกค้า|หมดสัญญา|ต่ออายุ/.test(text);
+    if (isGenZMode(text, history) && !isExpiryQ) {
       const reply = await chatReply(text, history, allKB, openaiKey, userProfile, allUsers);
       await tgSend(chatId, reply, token);
       await addMessage(db, userId, 'user', text);
