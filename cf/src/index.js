@@ -294,7 +294,7 @@ async function detectIntent(text, apiKey) {
   const system = `คุณเป็นระบบจำแนกประเภทคำถามของทีม Support บริษัท Thunder Solution
 อ่านข้อความแล้วตอบแค่คำเดียว (ตัวพิมพ์ใหญ่):
 TEACH    — เริ่มด้วย /teach หรือมีเจตนาสอนบอท
-REMEMBER — บันทึก @username ชื่อ/role เช่น "จำ @somchai ชื่อ สมชาย"
+REMEMBER — บันทึก @username หรือแนะนำตัวเอง เช่น "จำ @somchai ชื่อ สมชาย" / "ฉันชื่อ สมชาย" / "X คือ Admin"
 REWRITE  — มีคำว่า "เขียน" หรือ "แต่ง" หรือ "ร่าง" ข้อความ → REWRITE เสมอ แม้มีคำว่าหมดอายุ
 EXPIRY   — ถามข้อมูลลูกค้าหมดอายุ (ไม่มีคำว่าเขียน/แต่ง/ร่าง)
 QUERY    — ถามเรื่องสินค้า บริการ ฟีเจอร์ ราคา วิธีใช้
@@ -421,31 +421,61 @@ async function getImageB64(fileId, token) {
 // REMEMBER Parser
 // ═══════════════════════════════════════════
 
-function parseRemember(text) {
+function parseRemember(text, fromId = null) {
+  // แบบ @username
   const m = text.match(/@(\w+)/);
-  if (!m) return null;
-  const identifier = '@' + m[1].toLowerCase();
-  let after = text.slice(m.index + m[0].length).trim();
-  after = after.replace(/^(?:ชื่อ|คือ|=|ว่า|เป็น|ให้ชื่อ)\s*/i, '').trim();
+  if (m) {
+    const identifier = '@' + m[1].toLowerCase();
+    let after = text.slice(m.index + m[0].length).trim();
+    after = after.replace(/^(?:ชื่อ|คือ|=|ว่า|เป็น|ให้ชื่อ)\s*/i, '').trim();
 
-  let role = '';
-  const rm = after.match(/\b(admin|staff|vip|customer|other)\b/i);
-  if (rm) {
-    role = rm[1].toLowerCase();
-    after = (after.slice(0, rm.index) + after.slice(rm.index + rm[0].length)).trim();
-    after = after.replace(/\brole\b/i, '').trim();
+    let role = '';
+    const rm = after.match(/\b(admin|staff|vip|customer|other)\b/i);
+    if (rm) {
+      role = rm[1].toLowerCase();
+      after = (after.slice(0, rm.index) + after.slice(rm.index + rm[0].length)).trim();
+      after = after.replace(/\brole\b/i, '').trim();
+    }
+
+    if (!after) {
+      let before = text.slice(0, m.index).trim();
+      before = before.replace(/^(?:จำ|บันทึก|register|remember|เปลี่ยน)\s*/i, '').trim();
+      before = before.replace(/\s*(?:ชื่อ|คือ|=|ว่า|เป็น)\s*$/i, '').trim();
+      after = before;
+    }
+
+    const name = after.trim();
+    if (!name && !role) return null;
+    return { identifier, name, role };
   }
 
-  if (!after) {
-    let before = text.slice(0, m.index).trim();
-    before = before.replace(/^(?:จำ|บันทึก|register|remember|เปลี่ยน)\s*/i, '').trim();
-    before = before.replace(/\s*(?:ชื่อ|คือ|=|ว่า|เป็น)\s*$/i, '').trim();
-    after = before;
+  // แบบไม่มี @ — บันทึกตัวเอง เช่น "ฉันชื่อ สมชาย" / "X คือ Admin"
+  if (fromId) {
+    let t = text.replace(/^(?:จำ|บันทึก|register|remember)\s*/i, '').trim();
+    t = t.replace(/^(?:ฉัน(?:ชื่อ)?|ผม(?:ชื่อ)?|หนู(?:ชื่อ)?|น้อง(?:ชื่อ)?)\s*/i, '').trim();
+
+    let role = '';
+    const rm = t.match(/\b(admin|staff|vip|customer|other)\b/i);
+    if (rm) {
+      role = rm[1].toLowerCase();
+      t = (t.slice(0, rm.index) + t.slice(rm.index + rm[0].length)).trim();
+    }
+    // "X คือ Y" หรือ "X เป็น Y"
+    const kw = t.match(/^(.+?)\s*(?:คือ|เป็น|=)\s*(.*)$/i);
+    if (kw) {
+      const name = kw[1].trim();
+      const extra = kw[2].trim();
+      if (!role) {
+        const rm2 = extra.match(/\b(admin|staff|vip|customer|other)\b/i);
+        if (rm2) role = rm2[1].toLowerCase();
+      }
+      if (name) return { identifier: String(fromId), name, role };
+    }
+    t = t.replace(/\s*(?:คือ|เป็น|=)\s*.*/i, '').trim();
+    if (t) return { identifier: String(fromId), name: t, role };
   }
 
-  const name = after.trim();
-  if (!name && !role) return null;
-  return { identifier, name, role };
+  return null;
 }
 
 // ═══════════════════════════════════════════
@@ -620,8 +650,9 @@ async function handleRemember(message, env) {
   const chatId = message.chat.id;
   const { TELEGRAM_BOT_TOKEN: token, DB: db } = env;
   const text = (message.text || '').trim();
+  const fromId = message.from?.id;
 
-  const parsed = parseRemember(text);
+  const parsed = parseRemember(text, fromId);
   if (!parsed) {
     await tgSend(chatId, 'ไม่เข้าใจรูปแบบนะ ลองพิมพ์:\nจำ @somchai ชื่อ สมชาย\n@somchai คือ สมชาย staff', token);
     return;
