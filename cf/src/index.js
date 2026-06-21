@@ -449,7 +449,7 @@ function stripTrash(str) {
 
 function parseRemember(text, fromId = null) {
   // ถ้าเป็นคำถาม → ไม่ใช่ REMEMBER
-  if (/อะไร|ได้ไหม|ไหม\s*$|\?$|มั้ย/.test(text)) return null;
+  if (/อะไร|ใคร|ได้ไหม|ไหม\s*$|\?$|มั้ย|รู้จักไหม|หนิ\s*$/.test(text)) return null;
 
   let t = text.replace(/^(?:จำ|บันทึก|register|remember)\s*/i, '').trim();
   t = stripTrash(t);
