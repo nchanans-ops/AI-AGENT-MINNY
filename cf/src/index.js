@@ -476,7 +476,7 @@ function stripTrash(str) {
 
 function parseRemember(text, fromId = null) {
   // ถ้าเป็นคำถาม → ไม่ใช่ REMEMBER
-  if (/อะไร|ใคร|ได้ไหม|ไหม\s*$|\?$|มั้ย|รู้จักไหม|หนิ\s*$/.test(text)) return null;
+  if (/อะไร|ใคร|ได้ไหม|ไหม\s*$|\?$|มั้ย|รู้จักไหม|หนิ\s*$|คือใคร|เป็นใคร/.test(text)) return null;
 
   let t = text.replace(/^(?:จำ|บันทึก|register|remember)\s*/i, '').trim();
   t = stripTrash(t);
@@ -747,29 +747,31 @@ async function handleRemember(message, env) {
 }
 
 async function handleMyId(message, env) {
-  const chatId = message.chat.id;
+  const chatId = message.chat.id;   // ใช้ส่งข้อความเท่านั้น
+  const userId = String(message.from.id);  // ID จริงของ user
   const { TELEGRAM_BOT_TOKEN: token, DB: db } = env;
   const user = message.from;
-  const tgUsername = user.username ? '@' + user.username.toLowerCase() : null;
+  const tgUsername = user.username ? user.username.toLowerCase() : null;
 
+  // migrate จาก @username → numeric ID ถ้ามีข้อมูลเก่า
   let linkedMsg = '';
   if (tgUsername) {
     const old = await getUser(db, tgUsername);
-    if (old) {
-      await saveUser(db, String(chatId), old.name, old.role, old.notes);
+    if (old && old.chat_id !== userId) {
+      await saveUser(db, userId, old.name, old.role, old.notes);
       await deleteUser(db, tgUsername);
-      linkedMsg = `\nเชื่อมข้อมูลจาก ${tgUsername} แล้ว`;
+      linkedMsg = `\nเชื่อมข้อมูลจาก @${tgUsername} แล้ว`;
     }
   }
 
-  const profile = await getUser(db, String(chatId));
+  const profile = await getUser(db, userId);
   let profileMsg = '';
   if (profile?.name || profile?.role) {
     profileMsg = `\n\nระบบรู้จักว่า:\nชื่อ: ${profile.name || '-'}\nRole: ${profile.role || '-'}`;
   }
 
   await tgSend(chatId,
-    `Chat ID ของคุณคือ:\n${chatId}\n\nชื่อ: ${user.first_name || '-'}\nUsername: ${tgUsername || '(ไม่มี)'}${linkedMsg}${profileMsg}\n\nคัดลอก Chat ID ไปใส่ Dashboard ได้เลย`,
+    `User ID ของคุณคือ:\n${userId}\n\nชื่อ: ${user.first_name || '-'}\nUsername: ${tgUsername ? '@'+tgUsername : '(ไม่มี)'}${linkedMsg}${profileMsg}\n\nคัดลอก User ID ไปใส่ Dashboard ได้เลย`,
     token
   );
 }
