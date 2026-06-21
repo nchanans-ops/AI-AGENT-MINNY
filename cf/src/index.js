@@ -125,13 +125,10 @@ const THAI_MONTH_FULL = {
   'มกราคม':1,'กุมภาพันธ์':2,'มีนาคม':3,'เมษายน':4,
   'พฤษภาคม':5,'มิถุนายน':6,'กรกฎาคม':7,'สิงหาคม':8,
   'กันยายน':9,'ตุลาคม':10,'พฤศจิกายน':11,'ธันวาคม':12,
-  // คำย่อ/พิมพ์ผิดที่ใช้บ่อย
+  // alias ย่อที่ยาวพอ (ไม่ตรงกับคำทั่วไป)
   'มกรา':1,'กุมภา':2,'มีนา':3,'เมษา':4,
   'พฤษภา':5,'มิถุนา':6,'กรกฎา':7,'สิงหา':8,
   'กันยา':9,'ตุลา':10,'พฤศจิกา':11,'ธันวา':12,
-  'ม.ค':1,'ก.พ':2,'มี.ค':3,'เม.ย':4,
-  'พ.ค':5,'มิ.ย':6,'ก.ค':7,'ส.ค':8,
-  'ก.ย':9,'ต.ค':10,'พ.ย':11,'ธ.ค':12,
 };
 
 function parseThaiDate(value) {
@@ -232,11 +229,10 @@ async function queryExpiry(text, credJson, sheetId) {
       const yr = today.getFullYear() + (mn < today.getMonth()+1 ? 1 : 0);
       filterFn = d => d.getFullYear()===yr && d.getMonth()+1===mn;
     } else {
-      // ชื่อเดือนไทย
-      const allM = {...THAI_MONTH_FULL,...THAI_MONTH_SHORT};
-      const found = Object.keys(allM).sort((a,b)=>b.length-a.length).find(k=>text.includes(k));
+      // ชื่อเดือนไทย — ใช้เฉพาะ THAI_MONTH_FULL (ไม่ใช้ SHORT เพราะ 'กค' ตรงกับ "ลูกค้า")
+      const found = Object.keys(THAI_MONTH_FULL).sort((a,b)=>b.length-a.length).find(k=>text.includes(k));
       if (found) {
-        const mn = allM[found];
+        const mn = THAI_MONTH_FULL[found];
         const yr = today.getFullYear() + (mn < today.getMonth()+1 ? 1 : 0);
         filterFn = d => d.getFullYear()===yr && d.getMonth()+1===mn;
       } else {
