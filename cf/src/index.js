@@ -337,7 +337,7 @@ async function answerQuery(question, docs, history, apiKey, allUsers = []) {
   );
 }
 
-const GEN_Z_TRIGGERS = /เด็กเจนซี|gen\s*z|โหมดเจนซี|พูดแบบวัยรุ่น|เอาภาษาวัยรุ่น|ขำๆหน่อย|ขำๆ หน่อย|สดใสกว่านี้|ทำให้ดูไม่แก่|ทำให้ดูทันสมัย|คุยให้วัยรุ่นขึ้น/i;
+const GEN_Z_TRIGGERS = /เด็กเจนซี|gen\s*z|โหมดเจนซี|พูดแบบวัยรุ่น|ตอบแบบวัยรุ่น|เอาภาษาวัยรุ่น|ขำๆหน่อย|ขำๆ หน่อย|สดใสกว่านี้|ทำให้ดูไม่แก่|ทำให้ดูทันสมัย|คุยให้วัยรุ่นขึ้น|ตอบแบบเจนซี|พูดแบบเจนซี|ภาษาเจนซี/i;
 
 function isGenZMode(text, history) {
   if (GEN_Z_TRIGGERS.test(text)) return true;
@@ -670,11 +670,19 @@ async function handleUpdate(update, env) {
     }
   } else if (intent === 'QUERY') {
     const [history, allKB, allUsers] = await Promise.all([getHistory(db, userId), getAllKnowledge(db), getAllUsers(db)]);
-    const matched = allKB.filter(d => kbMatches(text, d.content || ''));
-    const reply = await answerQuery(text, matched.length ? matched : allKB, history, openaiKey, allUsers);
-    await tgSend(chatId, reply, token);
-    await addMessage(db, userId, 'user', text);
-    await addMessage(db, userId, 'assistant', reply);
+    // ถ้า Gen Z mode active → ไป chatReply แทน (ตอบแบบมีชีวิตชีวา ไม่ติด KB)
+    if (isGenZMode(text, history)) {
+      const reply = await chatReply(text, history, allKB, openaiKey, userProfile, allUsers);
+      await tgSend(chatId, reply, token);
+      await addMessage(db, userId, 'user', text);
+      await addMessage(db, userId, 'assistant', reply);
+    } else {
+      const matched = allKB.filter(d => kbMatches(text, d.content || ''));
+      const reply = await answerQuery(text, matched.length ? matched : allKB, history, openaiKey, allUsers);
+      await tgSend(chatId, reply, token);
+      await addMessage(db, userId, 'user', text);
+      await addMessage(db, userId, 'assistant', reply);
+    }
   } else {
     const [history, allKB, allUsers] = await Promise.all([getHistory(db, userId), getAllKnowledge(db), getAllUsers(db)]);
     const reply = await chatReply(text, history, allKB, openaiKey, userProfile, allUsers);
