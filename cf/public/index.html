@@ -955,7 +955,7 @@ KB = answered from knowledge base &nbsp;|&nbsp; GPT = AI fallback</div>
           <div id="panel-users" class="panel">
             <div class="panel-header">
               <span class="panel-title">USER PROFILES</span>
-              <button class="btn btn-purple btn-sm" onclick="toggleForm('user-form')">+ Add User</button>
+              <button class="btn btn-purple btn-sm" onclick="openAddUser()">+ Add User</button>
             </div>
             <div id="user-form" class="slide-form">
               <input type="hidden" id="user-eid">
@@ -1287,6 +1287,16 @@ function renderUsers(users){
       <button class="btn btn-red btn-xs" onclick="delUser('${esc(u.chat_id).replace(/'/g,"\\'")}')">Delete</button>
     </td>
   </tr>`).join('');
+}
+function openAddUser(){
+  document.getElementById('user-eid').value='';
+  document.getElementById('user-chatid').value='';
+  document.getElementById('user-chatid').disabled=false;
+  document.getElementById('user-name').value='';
+  document.getElementById('user-role').value='staff';
+  document.getElementById('user-notes').value='';
+  const w=document.getElementById('user-form');
+  if(!w.classList.contains('open'))toggleForm('user-form');
 }
 function editUser(cid){
   const u=usersAll.find(x=>x.chat_id===cid);if(!u)return;
