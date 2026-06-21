@@ -322,7 +322,7 @@ async function answerQuery(question, docs, history, apiKey, allUsers = []) {
 - ถ้าไม่มีใน KB: "ยังไม่มีข้อมูลเรื่องนี้ค่ะ"
 - ห้ามใช้ * หรือ #`;
   if (allUsers.length) {
-    const userLines = allUsers.filter(u => u.name).map(u => `- ${u.name} (${u.role || 'ไม่ระบุ'})`).join('\n');
+    const userLines = allUsers.filter(u => u.name).map(u => `- ${u.name}${u.notes ? ' / ' + u.notes : ''} (${u.role || 'ไม่ระบุ'})`).join('\n');
     if (userLines) system += `\n\n--- รายชื่อทีม ---\n${userLines}`;
   }
   system += `\n--- Knowledge Base ---\n${context}`;
@@ -340,7 +340,7 @@ async function chatReply(text, history, docs, apiKey, userProfile = null, allUse
     system += `\n\nผู้ที่คุยด้วยตอนนี้: ชื่อ "${userProfile.name || '-'}" role: ${userProfile.role || '-'}`;
   }
   if (allUsers.length) {
-    const userLines = allUsers.filter(u => u.name).map(u => `- ${u.name} (${u.role || 'ไม่ระบุ'})`).join('\n');
+    const userLines = allUsers.filter(u => u.name).map(u => `- ${u.name}${u.notes ? ' / ' + u.notes : ''} (${u.role || 'ไม่ระบุ'})`).join('\n');
     if (userLines) system += `\n\n--- รายชื่อทีม ---\n${userLines}`;
   }
   if (docs.length) {
@@ -545,6 +545,15 @@ async function handleUpdate(update, env) {
 
   // ── User profile lookup (ใช้ userId = from.id เสมอ ทั้ง DM และกลุ่ม) ──
   const userProfile = await getUser(db, userId);
+  // Auto-save @username เข้า notes ถ้ามีโปรไฟล์แต่ยังไม่มี username
+  if (userProfile && message.from?.username) {
+    const tgUsername = '@' + message.from.username;
+    if (!userProfile.notes?.includes(tgUsername)) {
+      const newNotes = userProfile.notes ? userProfile.notes + ', ' + tgUsername : tgUsername;
+      await saveUser(db, userId, userProfile.name, userProfile.role, newNotes);
+      userProfile.notes = newNotes;
+    }
+  }
 
   // ── Intent detection ──
   const intent = await detectIntent(text, openaiKey);
