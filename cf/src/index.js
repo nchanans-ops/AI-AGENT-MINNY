@@ -729,7 +729,16 @@ async function handleRemember(message, env) {
 
   const parsed = parseRemember(text, fromId);
   if (!parsed) {
-    await tgSend(chatId, 'ไม่เข้าใจรูปแบบนะ ลองพิมพ์:\nจำ @somchai ชื่อ สมชาย\n@somchai คือ สมชาย staff', token);
+    // ไม่ใช่ REMEMBER จริง → ส่งต่อไป chatReply แทน
+    const userId = String(fromId || chatId);
+    const { OPENAI_API_KEY: openaiKey } = env;
+    const [history, allKB, allUsers, userProfile] = await Promise.all([
+      getHistory(db, userId), getAllKnowledge(db), getAllUsers(db), getUser(db, userId)
+    ]);
+    const reply = await chatReply(text, history, allKB, openaiKey, userProfile, allUsers);
+    await tgSend(chatId, reply, token);
+    await addMessage(db, userId, 'user', text);
+    await addMessage(db, userId, 'assistant', reply);
     return;
   }
   // ถ้า identifier เป็น username (ไม่ใช่ตัวเลข) → หา existing entry ก่อน แล้ว merge
