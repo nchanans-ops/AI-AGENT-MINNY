@@ -294,7 +294,7 @@ async function detectIntent(text, apiKey) {
   const system = `คุณเป็นระบบจำแนกประเภทคำถามของทีม Support บริษัท Thunder Solution
 อ่านข้อความแล้วตอบแค่คำเดียว (ตัวพิมพ์ใหญ่):
 TEACH    — เริ่มด้วย /teach หรือมีเจตนาสอนบอท
-REMEMBER — บันทึก @username หรือแนะนำตัวเอง เช่น "จำ @somchai ชื่อ สมชาย" / "ฉันชื่อ สมชาย" / "X คือ Admin"
+REMEMBER — บันทึกชื่อ/role ของคนจริงๆ เช่น "จำ @somchai ชื่อ สมชาย" / "ฉันชื่อ สมชาย" / "arunjai ชื่อ น้อง" ห้ามใช้กับคำถาม เช่น "ฉันชื่ออะไร" "จำฉันได้ไหม" → ต้องมีชื่อจริงให้บันทึกเสมอ
 REWRITE  — มีคำว่า "เขียน" หรือ "แต่ง" หรือ "ร่าง" ข้อความ → REWRITE เสมอ แม้มีคำว่าหมดอายุ
 EXPIRY   — ถามข้อมูลลูกค้าหมดอายุ (ไม่มีคำว่าเขียน/แต่ง/ร่าง)
 QUERY    — ถามเรื่องสินค้า บริการ ฟีเจอร์ ราคา วิธีใช้
@@ -448,6 +448,9 @@ function stripTrash(str) {
 }
 
 function parseRemember(text, fromId = null) {
+  // ถ้าเป็นคำถาม → ไม่ใช่ REMEMBER
+  if (/อะไร|ได้ไหม|ไหม\s*$|\?$|มั้ย/.test(text)) return null;
+
   let t = text.replace(/^(?:จำ|บันทึก|register|remember)\s*/i, '').trim();
   t = stripTrash(t);
 
