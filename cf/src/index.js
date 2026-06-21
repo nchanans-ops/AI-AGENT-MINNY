@@ -318,8 +318,8 @@ async function answerQuery(question, docs, history, apiKey, allUsers = []) {
     : '(ไม่มีข้อมูลใน knowledge base)';
 
   let system = `คุณคือ "น้องมินนี่" ผู้ช่วย Support ทีม Thunder Solution
-- ดึงข้อมูลจาก knowledge base เท่านั้น ห้ามเพิ่ม ห้ามแต่งเอง
-- ถ้าไม่มีใน KB: "ยังไม่มีข้อมูลเรื่องนี้ค่ะ"
+- ตอบจาก knowledge base หรือรายชื่อทีม (ถ้ามี) ห้ามแต่งเอง
+- ถ้าไม่มีข้อมูลเลย: "ยังไม่มีข้อมูลเรื่องนี้ค่ะ"
 - ห้ามใช้ * หรือ #`;
   if (allUsers.length) {
     const userLines = allUsers.filter(u => u.name).map(u => {
@@ -436,58 +436,69 @@ async function getImageB64(fileId, token) {
 // REMEMBER Parser
 // ═══════════════════════════════════════════
 
+function extractRole(str) {
+  const m = str.match(/\b(admin|staff|vip|customer|other)\b/i);
+  return m ? m[1].toLowerCase() : '';
+}
+function stripRole(str) {
+  return str.replace(/\b(admin|staff|vip|customer|other)\b/gi, '').replace(/,\s*/g, '').trim();
+}
+function stripTrash(str) {
+  return str.replace(/\s*(จำไว้|นะ|ด้วย|หน่อย|ไว้เลย)\s*/gi, '').trim();
+}
+
 function parseRemember(text, fromId = null) {
-  // แบบ @username
-  const m = text.match(/@(\w+)/);
-  if (m) {
-    const identifier = '@' + m[1].toLowerCase();
-    let after = text.slice(m.index + m[0].length).trim();
-    after = after.replace(/^(?:ชื่อ|คือ|=|ว่า|เป็น|ให้ชื่อ)\s*/i, '').trim();
+  let t = text.replace(/^(?:จำ|บันทึก|register|remember)\s*/i, '').trim();
+  t = stripTrash(t);
 
-    let role = '';
-    const rm = after.match(/\b(admin|staff|vip|customer|other)\b/i);
-    if (rm) {
-      role = rm[1].toLowerCase();
-      after = (after.slice(0, rm.index) + after.slice(rm.index + rm[0].length)).trim();
-      after = after.replace(/\brole\b/i, '').trim();
-    }
-
-    if (!after) {
-      let before = text.slice(0, m.index).trim();
-      before = before.replace(/^(?:จำ|บันทึก|register|remember|เปลี่ยน)\s*/i, '').trim();
-      before = before.replace(/\s*(?:ชื่อ|คือ|=|ว่า|เป็น)\s*$/i, '').trim();
-      after = before;
-    }
-
-    const name = after.trim();
+  // ── 1. มี @username ──
+  const atMatch = t.match(/@(\w+)/);
+  if (atMatch) {
+    const identifier = atMatch[1]; // เก็บโดยไม่มี @
+    const rest = (t.slice(0, atMatch.index) + t.slice(atMatch.index + atMatch[0].length))
+      .replace(/^(?:ชื่อ|คือ|=|ว่า|เป็น)\s*/i, '').trim();
+    const name = stripRole(stripTrash(rest));
+    const role = extractRole(rest);
     if (!name && !role) return null;
     return { identifier, name, role };
   }
 
-  // แบบไม่มี @ — บันทึกตัวเอง เช่น "ฉันชื่อ สมชาย" / "X คือ Admin"
-  if (fromId) {
-    let t = text.replace(/^(?:จำ|บันทึก|register|remember)\s*/i, '').trim();
-    t = t.replace(/^(?:ฉัน(?:ชื่อ)?|ผม(?:ชื่อ)?|หนู(?:ชื่อ)?|น้อง(?:ชื่อ)?)\s*/i, '').trim();
+  // ── 2. "USERNAME ชื่อ NAME" — บันทึกให้คนอื่นโดยใช้ชื่อ Telegram เป็น key ──
+  // เช่น "arunjai ชื่อ น้อง" / "arunjai ชื่อ น้อง staff"
+  const byNameMatch = t.match(/^([a-zA-Z0-9_]+)\s+ชื่อ\s+(.+)$/i);
+  if (byNameMatch) {
+    const identifier = byNameMatch[1].toLowerCase();
+    const rest = byNameMatch[2].trim();
+    const name = stripRole(stripTrash(rest));
+    const role = extractRole(rest);
+    if (name) return { identifier, name, role };
+  }
 
-    let role = '';
-    const rm = t.match(/\b(admin|staff|vip|customer|other)\b/i);
-    if (rm) {
-      role = rm[1].toLowerCase();
-      t = (t.slice(0, rm.index) + t.slice(rm.index + rm[0].length)).trim();
+  // ── 3. "X คือ/เป็น Y" ──
+  const kwMatch = t.match(/^(.+?)\s*(?:คือ|เป็น|=)\s*(.+)$/i);
+  if (kwMatch) {
+    const left = kwMatch[1].trim();
+    const right = kwMatch[2].trim();
+    // ถ้า left เป็น @-free username (ASCII ล้วน) → บันทึกให้คนนั้น
+    if (/^[a-zA-Z0-9_]+$/.test(left)) {
+      const name = stripRole(stripTrash(right));
+      const role = extractRole(right) || extractRole(left);
+      return { identifier: left.toLowerCase(), name, role };
     }
-    // "X คือ Y" หรือ "X เป็น Y"
-    const kw = t.match(/^(.+?)\s*(?:คือ|เป็น|=)\s*(.*)$/i);
-    if (kw) {
-      const name = kw[1].trim();
-      const extra = kw[2].trim();
-      if (!role) {
-        const rm2 = extra.match(/\b(admin|staff|vip|customer|other)\b/i);
-        if (rm2) role = rm2[1].toLowerCase();
-      }
-      if (name) return { identifier: String(fromId), name, role };
+    // ไม่งั้น → บันทึกให้ตัวเอง (fromId)
+    if (fromId) {
+      const name = stripRole(stripTrash(right) || stripTrash(left));
+      const role = extractRole(right) || extractRole(left);
+      return { identifier: String(fromId), name: name || left, role };
     }
-    t = t.replace(/\s*(?:คือ|เป็น|=)\s*.*/i, '').trim();
-    if (t) return { identifier: String(fromId), name: t, role };
+  }
+
+  // ── 4. แนะนำตัวเอง "ฉันชื่อ X" ──
+  if (fromId) {
+    t = t.replace(/^(?:ฉัน(?:ชื่อ)?|ผม(?:ชื่อ)?|หนู(?:ชื่อ)?)\s*/i, '').trim();
+    const name = stripRole(stripTrash(t));
+    const role = extractRole(t);
+    if (name) return { identifier: String(fromId), name, role };
   }
 
   return null;
@@ -682,11 +693,18 @@ async function handleRemember(message, env) {
     await tgSend(chatId, 'ไม่เข้าใจรูปแบบนะ ลองพิมพ์:\nจำ @somchai ชื่อ สมชาย\n@somchai คือ สมชาย staff', token);
     return;
   }
-  await saveUser(db, parsed.identifier, parsed.name, parsed.role, '');
+  // ถ้า identifier เป็น username (ไม่ใช่ตัวเลข) → หา existing entry ก่อน แล้ว merge
+  let saveId = parsed.identifier;
+  if (isNaN(parsed.identifier)) {
+    const existing = await getUser(db, parsed.identifier);
+    saveId = existing?.chat_id || parsed.identifier;
+  }
+  const existing = await getUser(db, saveId);
+  await saveUser(db, saveId, parsed.name || existing?.name || '', parsed.role || existing?.role || '', existing?.notes || '');
   const parts = [];
   if (parsed.name) parts.push(`ชื่อ: ${parsed.name}`);
   if (parsed.role) parts.push(`Role: ${parsed.role}`);
-  await tgSend(chatId, `จำแล้วนะ ${parsed.identifier}\n${parts.join('\n')}`, token);
+  await tgSend(chatId, `จำแล้วนะ\n${parts.join('\n')}`, token);
 }
 
 async function handleMyId(message, env) {
